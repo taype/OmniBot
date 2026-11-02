@@ -23,6 +23,7 @@ import {
   teamApprovalSettingsMutationOptions,
   updateTeamApprovalRuleMutationOptions,
 } from "@/lib/approvals";
+import { useI18n } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 import { HOST_LABELS, LabelSelect, RuleForm, RuleRow } from "./rules";
 import { SharedUseRequests } from "./shared-use-requests";
@@ -33,6 +34,7 @@ import { SharedUseRequests } from "./shared-use-requests";
  * Settings → Approvals.
  */
 export function TeamApprovalSettings() {
+  const { t } = useI18n();
   const inbox = useQuery(approvalInboxOptions());
   const team = useMutation(teamApprovalSettingsMutationOptions(queryClient));
   const addTeamRule = useMutation(
@@ -58,7 +60,7 @@ export function TeamApprovalSettings() {
         </p>
       ) : null}
       {settings ? (
-        <PageSection title="Team settings">
+        <PageSection title={t("Team settings")}>
           <PageRows>
             <Item size="sm">
               <ItemMedia variant="icon">
@@ -66,7 +68,7 @@ export function TeamApprovalSettings() {
               </ItemMedia>
               <ItemContent>
                 <ItemTitle id="enforce-auto-review-title">
-                  Require auto-review for everyone
+                  {t("Require auto-review for everyone")}
                 </ItemTitle>
               </ItemContent>
               <ItemActions>
@@ -87,7 +89,7 @@ export function TeamApprovalSettings() {
               </ItemMedia>
               <ItemContent>
                 <ItemTitle id="custom-rules-title">
-                  Let members set personal rules
+                  {t("Let members set personal rules")}
                 </ItemTitle>
               </ItemContent>
               <ItemActions>
@@ -107,15 +109,17 @@ export function TeamApprovalSettings() {
                 <IconTerminal2 />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>Commands on members' computers, at most</ItemTitle>
+                <ItemTitle>
+                  {t("Commands on members' computers, at most")}
+                </ItemTitle>
                 <ItemDescription>
-                  A member's own stricter setting still applies.
+                  {t("A member's own stricter setting still applies.")}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <LabelSelect
                   disabled={team.isPending}
-                  label="Commands on members' computers, at most"
+                  label={t("Commands on members' computers, at most")}
                   labels={HOST_LABELS}
                   onChange={(hostCommandsCap) =>
                     team.mutate({ hostCommandsCap })
@@ -128,10 +132,14 @@ export function TeamApprovalSettings() {
         </PageSection>
       ) : null}
       <PageSection
-        description="These apply to every member's Bots. Members can't change them."
-        title="Team rules"
+        description={t(
+          "These apply to every member's Bots. Members can't change them.",
+        )}
+        title={t("Team rules")}
       >
-        {teamRules.length === 0 ? <PageEmpty>No team rules.</PageEmpty> : null}
+        {teamRules.length === 0 ? (
+          <PageEmpty>{t("No team rules.")}</PageEmpty>
+        ) : null}
         <PageRows>
           {teamRules.map((rule) => (
             <Fragment key={rule.id}>
@@ -147,7 +155,7 @@ export function TeamApprovalSettings() {
               <Separator />
             </Fragment>
           ))}
-          <RuleForm label="Add a team rule" save={addTeamRule} />
+          <RuleForm label={t("Add a team rule")} save={addTeamRule} />
         </PageRows>
       </PageSection>
       <SharedUseRequests />

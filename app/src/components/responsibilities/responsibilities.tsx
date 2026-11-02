@@ -21,6 +21,7 @@ import {
   responsibilitiesQueryOptions,
   triggersQueryOptions,
 } from "@/lib/responsibilities";
+import { useI18n } from "@/lib/i18n";
 import { NewResponsibilityDialog } from "./new-responsibility-dialog";
 import {
   ResponsibilityDialog,
@@ -38,6 +39,7 @@ import {
  * many values and a settings screen that edits many values in place turns back into a form.
  */
 export function BotResponsibilities({ agentId }: { agentId?: string }) {
+  const { t } = useI18n();
   const goals = useQuery(responsibilitiesQueryOptions());
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -51,10 +53,10 @@ export function BotResponsibilities({ agentId }: { agentId?: string }) {
       action={
         <Button onClick={() => setCreating(true)} size="sm" variant="ghost">
           <IconPlus />
-          New responsibility
+          {t("New responsibility")}
         </Button>
       }
-      title="Goals"
+      title={t("Goals")}
     >
       {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
       {goals.isPending ? null : goals.error ? (
@@ -64,8 +66,10 @@ export function BotResponsibilities({ agentId }: { agentId?: string }) {
       ) : shown.length === 0 ? (
         <PageEmpty>
           {agentId
-            ? "No responsibilities for this Bot yet. Add one with New responsibility."
-            : "No responsibilities yet. Add one with New responsibility."}
+            ? t(
+                "No responsibilities for this Bot yet. Add one with New responsibility.",
+              )
+            : t("No responsibilities yet. Add one with New responsibility.")}
         </PageEmpty>
       ) : (
         <PageRows>
@@ -109,6 +113,7 @@ function ResponsibilityRow({
   goal: ResponsibilityRecord;
   onOpen: () => void;
 }) {
+  const { t } = useI18n();
   const triggers = useQuery(triggersQueryOptions(goal.id));
   const Icon = STATUS[goal.status].icon;
   return (
@@ -118,7 +123,7 @@ function ResponsibilityRow({
       </ItemMedia>
       <ItemContent>
         <ItemTitle>{goal.title}</ItemTitle>
-        <ItemDescription>{summaryFor(goal, triggers.data)}</ItemDescription>
+        <ItemDescription>{summaryFor(goal, triggers.data, t)}</ItemDescription>
       </ItemContent>
       <ItemActions>
         <IconChevronRight className="size-4 text-muted-foreground" />

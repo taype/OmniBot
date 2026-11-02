@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BotSubpage } from "@/components/bot-profile/bot-subpage";
+import { useI18n } from "@/lib/i18n";
 import { RoutinesList } from "@/components/routines/routines-list";
 
 export const Route = createFileRoute("/_authed/_app/bots/$agentId/routines")({
@@ -8,11 +9,14 @@ export const Route = createFileRoute("/_authed/_app/bots/$agentId/routines")({
 
 function RoutinesPage() {
   const { agentId } = Route.useParams();
+  const { t } = useI18n();
   return (
     <BotSubpage
       agentId={agentId}
-      description="What this Bot does for you on a schedule. Turn one off, run it now, or delete it."
-      title="Routines"
+      description={t(
+        "What this Bot does for you on a schedule. Turn one off, run it now, or delete it.",
+      )}
+      title={t("Routines")}
     >
       {(agent) => <RoutinesList agentId={agent.id} />}
     </BotSubpage>

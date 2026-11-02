@@ -74,7 +74,7 @@ function unavailableSentence(
       return `${title} is ${article} ${vendor} app, and ${envVar} isn't set. Set it, then approve this request again.`;
     }
     case "scheme_unreadable":
-      return `${title} is turned on, but OpenBot can't read how it connects. Remove it and turn it on again under Plugins, then approve this request again.`;
+      return `${title} is turned on, but OmniBot can't read how it connects. Remove it and turn it on again under Plugins, then approve this request again.`;
     case "oauth_client_missing":
       return `${title} has no OAuth client yet. Register one on its page under Plugins, then approve this request again.`;
     case "token_missing":
@@ -194,7 +194,7 @@ export function mountAppAccessRoutes({
             sharedAudience,
           });
     if (!inspected)
-      return context.json({ error: `OpenBot has no app called ${app}.` }, 404);
+      return context.json({ error: `OmniBot has no app called ${app}.` }, 404);
     return context.json({ app: inspected.access });
   });
 
@@ -251,7 +251,7 @@ export function mountAppAccessRoutes({
         app,
         bot: agentId,
         reason: "no_such_app",
-        error: `OpenBot has no app called ${app}.`,
+        error: `OmniBot has no app called ${app}.`,
         status: 404,
       });
     const { access } = inspected;

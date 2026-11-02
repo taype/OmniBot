@@ -26,6 +26,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { type Translate, useI18n } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -84,6 +85,7 @@ const markFor = (key: string) => MARKS[key] ?? IconPlug;
  */
 function summaryFor(
   server: PluginServer,
+  t: Translate,
   /**
    * The vendor's auth kind, from the catalogue rather than the server record.
    *
@@ -94,16 +96,17 @@ function summaryFor(
   auth: CatalogueItem["auth"] | undefined,
   youConnected: boolean,
 ): string {
-  if (auth === "user-oauth" && !youConnected) return "Not connected";
-  if (server.tools.length === 0) return "No tools yet";
+  if (auth === "user-oauth" && !youConnected) return t("Not connected");
+  if (server.tools.length === 0) return t("No tools yet");
 
   const bots = new Set(server.tools.flatMap((tool) => tool.grantedTo)).size;
-  const tools = `${server.tools.length} ${server.tools.length === 1 ? "tool" : "tools"}`;
-  if (bots === 0) return `${tools} · no Bots`;
-  return `${tools} · ${bots} ${bots === 1 ? "Bot" : "Bots"}`;
+  const tools = t("{count} tools", { count: server.tools.length });
+  if (bots === 0) return t("{tools} · no Bots", { tools });
+  return t("{tools} · {bots} Bots", { tools, bots });
 }
 
 function RouteComponent() {
+  const { t } = useI18n();
   const plugins = useQuery(pluginsPageQueryOptions());
   const connections = useQuery(connectionsQueryOptions());
   /*
@@ -139,13 +142,15 @@ function RouteComponent() {
 
   return (
     <PageShell
-      description="What this deployment can reach, and which Bots can use it. A plugin you add is for everybody. Choose which Bots get its tools on its page."
-      title="Plugins"
+      description={t(
+        "What this deployment can reach, and which Bots can use it. A plugin you add is for everybody. Choose which Bots get its tools on its page.",
+      )}
+      title={t("Plugins")}
     >
       {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
       {plugins.isPending ? null : plugins.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Couldn't load plugins. Reload the page.
+          {t("Couldn't load plugins. Reload the page.")}
         </p>
       ) : (
         <>
@@ -156,12 +161,14 @@ function RouteComponent() {
           <AccessRequestsSection />
 
           <PageSection
-            description="Added for everybody. Open one to set it up and choose which Bots get its tools."
-            title="Connected"
+            description={t(
+              "Added for everybody. Open one to set it up and choose which Bots get its tools.",
+            )}
+            title={t("Connected")}
           >
             {plugins.data?.servers.length === 0 ? (
               <PageEmpty>
-                Nothing connected yet. Pick one from the list below.
+                {t("Nothing connected yet. Pick one from the list below.")}
               </PageEmpty>
             ) : (
               <PageRows>
@@ -209,6 +216,7 @@ function RouteComponent() {
                           <span className="text-muted-foreground text-xs">
                             {summaryFor(
                               server,
+                              t,
                               authByKey.get(server.id),
                               connected.has(server.id),
                             )}
@@ -227,11 +235,15 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="Reviewed, first-party servers. Open one to add it."
-            title="Explore plugins"
+            description={t(
+              "Reviewed, first-party servers. Open one to add it.",
+            )}
+            title={t("Explore plugins")}
           >
             {explore.length === 0 ? (
-              <PageEmpty>Every plugin in the catalogue is connected.</PageEmpty>
+              <PageEmpty>
+                {t("Every plugin in the catalogue is connected.")}
+              </PageEmpty>
             ) : (
               <PageRows>
                 {explore.map((entry: CatalogueItem, index) => {
@@ -260,7 +272,7 @@ function RouteComponent() {
                             count={requestCounts?.byApp[entry.key] ?? 0}
                           />
                           <span className="text-muted-foreground text-xs">
-                            Not added
+                            {t("Not added")}
                           </span>
                           <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                         </ItemActions>
@@ -275,7 +287,7 @@ function RouteComponent() {
 
           <PageSection
             description={moreAppsSectionDescription(provider)}
-            title="More apps"
+            title={t("More apps")}
           >
             <PageRows>
               {/*
@@ -335,10 +347,11 @@ function RouteComponent() {
  * row that reads as something to do. Nothing at zero: a count of nothing on every row is noise.
  */
 function PendingRequests({ count }: { count: number }) {
+  const { t } = useI18n();
   if (count === 0) return null;
   return (
     <span className="font-medium text-foreground text-xs tabular-nums">
-      {count} {count === 1 ? "request" : "requests"}
+      {t("{count} requests", { count })}
     </span>
   );
 }

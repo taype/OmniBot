@@ -5,6 +5,7 @@ import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isComposing } from "@/lib/composing";
+import { useI18n } from "@/lib/i18n";
 import { saveActionPolicyMutationOptions } from "@/lib/computers/mutations";
 import {
   type ActionPolicy,
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/_authed/admin/boundaries")({
 });
 
 function BoundariesPage() {
+  const { t } = useI18n();
   const [problem, setProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [draft, setDraft] = useState("");
@@ -87,7 +89,7 @@ function BoundariesPage() {
   const unreadable = problem ?? stored.error?.message ?? null;
   if (unreadable && !policy) {
     return (
-      <PageShell title="Boundaries">
+      <PageShell title={t("Boundaries")}>
         <p className="mt-4 text-destructive text-sm" role="alert">
           {unreadable}
         </p>
@@ -97,7 +99,7 @@ function BoundariesPage() {
 
   /* Nothing until the policy is known: a rule list that guesses is worse than a blank. */
   if (!policy) {
-    return <PageShell title="Boundaries">{null}</PageShell>;
+    return <PageShell title={t("Boundaries")}>{null}</PageShell>;
   }
 
   const addRule = (rule: string) => {
@@ -136,19 +138,22 @@ function BoundariesPage() {
     <PageShell
       description={
         <>
-          What a Bot can and can't do with its computer. Every action is checked
-          before it happens. Refusals show in{" "}
+          {t(
+            "What a Bot can and can't do with its computer. Every action is checked before it happens. Refusals show in",
+          )}{" "}
           <Link className="underline" to="/admin/audit">
-            Audit
+            {t("Audit")}
           </Link>{" "}
-          with the rule that refused them.
+          {t("with the rule that refused them.")}
         </>
       }
-      title="Boundaries"
+      title={t("Boundaries")}
     >
       <PageSection
-        description="Stop the action, or record it and let it through. Recording lets you try a rule on real activity before it refuses anything."
-        title="When a rule matches"
+        description={t(
+          "Stop the action, or record it and let it through. Recording lets you try a rule on real activity before it refuses anything.",
+        )}
+        title={t("When a rule matches")}
       >
         <div className="mt-2 flex gap-2">
           {(["enforce", "dry-run"] as PolicyMode[]).map((mode) => (
@@ -162,15 +167,17 @@ function BoundariesPage() {
               variant="outline"
             >
               {mode === "enforce"
-                ? "Stop the action"
-                : "Record it and allow it"}
+                ? t("Stop the action")
+                : t("Record it and allow it")}
             </Button>
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {policy.mode === "enforce"
-            ? "The Bot is stopped and told which rule refused it."
-            : "Nothing is stopped. Each match is recorded as if it had been refused."}
+            ? t("The Bot is stopped and told which rule refused it.")
+            : t(
+                "Nothing is stopped. Each match is recorded as if it had been refused.",
+              )}
         </p>
       </PageSection>
 
@@ -191,11 +198,11 @@ function BoundariesPage() {
             match. A typo never lets an action through.
           </>
         }
-        title="Bots may never"
+        title={t("Bots may never")}
       >
         {policy.deny.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            No rules. Every action is allowed and recorded.
+            {t("No rules. Every action is allowed and recorded.")}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -218,7 +225,7 @@ function BoundariesPage() {
                   size="sm"
                   variant="ghost"
                 >
-                  Remove
+                  {t("Remove")}
                 </Button>
               </li>
             ))}
@@ -227,7 +234,7 @@ function BoundariesPage() {
 
         <div className="mt-3 flex gap-2">
           <Input
-            aria-label="A rule, written in CEL"
+            aria-label={t("A rule, written in CEL")}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -251,14 +258,14 @@ function BoundariesPage() {
             size="sm"
             variant="outline"
           >
-            {testing ? "Testing…" : "Test first"}
+            {testing ? t("Testing…") : t("Test first")}
           </Button>
           <Button
             disabled={saving || draft.trim().length === 0}
             onClick={() => addRule(draft)}
             size="sm"
           >
-            Add rule
+            {t("Add rule")}
           </Button>
         </div>
 
@@ -274,11 +281,11 @@ function BoundariesPage() {
                 size="sm"
                 variant="outline"
               >
-                {preset.label}
+                {t(preset.label)}
               </Button>
               {preset.cost ? (
                 <span className="pt-1 text-xs text-muted-foreground">
-                  {preset.cost}
+                  {t(preset.cost)}
                 </span>
               ) : null}
             </li>
@@ -287,13 +294,15 @@ function BoundariesPage() {
       </PageSection>
 
       <PageSection
-        description="Applies to anything the list above didn't catch. An empty list here allows nothing, and every action is refused."
-        title="Otherwise they may"
+        description={t(
+          "Applies to anything the list above didn't catch. An empty list here allows nothing, and every action is refused.",
+        )}
+        title={t("Otherwise they may")}
       >
         <ul className="mt-2 space-y-1">
           {policy.allow.map((rule) => (
             <li className="font-mono text-xs text-muted-foreground" key={rule}>
-              {rule === "true" ? "true, anything not refused above" : rule}
+              {rule === "true" ? t("true, anything not refused above") : rule}
             </li>
           ))}
         </ul>
@@ -305,9 +314,11 @@ function BoundariesPage() {
             {problem}
           </span>
         ) : saved ? (
-          "Saved. It applies to the next action any Bot takes."
+          t("Saved. It applies to the next action any Bot takes.")
         ) : (
-          "Changes apply to the next action any Bot takes. They stay after a restart."
+          t(
+            "Changes apply to the next action any Bot takes. They stay after a restart.",
+          )
         )}
       </p>
     </PageShell>
@@ -321,11 +332,13 @@ function BoundariesPage() {
  * who stops at the rows should not believe the rows are the whole answer.
  */
 function DryRunResult({ report }: { report: DryRunReport }) {
+  const { t } = useI18n();
   if (report.scanned === 0) {
     return (
       <p className="mt-2 text-xs text-muted-foreground" role="status">
-        No recorded computer actions to test against yet. The rule is valid.
-        You'll see what it matches once Bots have acted.
+        {t(
+          "No recorded computer actions to test against yet. The rule is valid. You'll see what it matches once Bots have acted.",
+        )}
       </p>
     );
   }
@@ -334,8 +347,14 @@ function DryRunResult({ report }: { report: DryRunReport }) {
     <div className="mt-2" role="status">
       <p className="text-xs text-muted-foreground">
         {report.wouldRefuse === 0
-          ? `Tested on the last ${report.scanned} recorded actions. This rule would have refused none. It may still match future ones.`
-          : `Tested on the last ${report.scanned} recorded actions. This rule would have refused ${report.wouldRefuse}.`}
+          ? t(
+              "Tested on the last {scanned} recorded actions. This rule would have refused none. It may still match future ones.",
+              { scanned: report.scanned },
+            )
+          : t(
+              "Tested on the last {scanned} recorded actions. This rule would have refused {refused}.",
+              { scanned: report.scanned, refused: report.wouldRefuse },
+            )}
       </p>
       {report.changes.length > 0 ? (
         <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -344,8 +363,8 @@ function DryRunResult({ report }: { report: DryRunReport }) {
               <p className="text-xs">
                 <span className="font-medium">
                   {change.would === "refused"
-                    ? "Would refuse"
-                    : "Would now allow"}
+                    ? t("Would refuse")
+                    : t("Would now allow")}
                 </span>{" "}
                 <code className="font-mono">{change.action}</code>
                 {change.element?.name ? <> on “{change.element.name}”</> : null}
@@ -368,8 +387,10 @@ function DryRunResult({ report }: { report: DryRunReport }) {
       ) : null}
       {report.wouldRefuse > report.changes.length ? (
         <p className="mt-1 text-muted-foreground text-xs">
-          Showing the first {report.changes.length}. The count above covers
-          everything checked.
+          {t(
+            "Showing the first {count}. The count above covers everything checked.",
+            { count: report.changes.length },
+          )}
         </p>
       ) : null}
     </div>

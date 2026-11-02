@@ -19,6 +19,7 @@ import {
   type UpdateTransport,
   updateRoutingQueryOptions,
 } from "@/lib/bot-lifecycle/queries";
+import { useI18n } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 const KIND_LABEL: Record<UpdateKind, { title: string; description: string }> = {
@@ -48,6 +49,7 @@ const TRANSPORTS: { id: UpdateTransport; label: string }[] = [
  * a given Bot sends is that Bot's own Notifications setting, on its page.
  */
 export function UpdateRoutingSection() {
+  const { t } = useI18n();
   const routing = useQuery(updateRoutingQueryOptions());
   const reach = useQuery(deliveryQueryOptions());
   const save = useMutation(setUpdateRoutingMutationOptions(queryClient));
@@ -62,12 +64,14 @@ export function UpdateRoutingSection() {
     reach.data ? reach.data.available[transport] : true;
   return (
     <PageSection
-      description="Where each kind of update goes when you're away. OpenBot on the web always shows everything."
-      title="Where updates go"
+      description={t(
+        "Where each kind of update goes when you're away. OmniBot on the web always shows everything.",
+      )}
+      title={t("Where updates go")}
     >
       {routing.isPending || reach.isPending ? null : routing.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Couldn't load where your updates go. Reload the page.
+          {t("Couldn't load where your updates go. Reload the page.")}
         </p>
       ) : (
         <PageRows>
@@ -83,9 +87,9 @@ export function UpdateRoutingSection() {
                     <IconRoute />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>{KIND_LABEL[kind].title}</ItemTitle>
+                    <ItemTitle>{t(KIND_LABEL[kind].title)}</ItemTitle>
                     <ItemDescription>
-                      {KIND_LABEL[kind].description}
+                      {t(KIND_LABEL[kind].description)}
                     </ItemDescription>
                   </ItemContent>
                   <ItemFooter className="flex-wrap justify-start gap-x-6 gap-y-3 pl-8">
@@ -95,7 +99,10 @@ export function UpdateRoutingSection() {
                         key={transport.id}
                       >
                         <Switch
-                          aria-label={`${KIND_LABEL[kind].title} by ${transport.label}`}
+                          aria-label={t("{kind} by {transport}", {
+                            kind: KIND_LABEL[kind].title,
+                            transport: transport.label,
+                          })}
                           checked={
                             configured(transport.id) && allowed(transport.id)
                           }
@@ -116,10 +123,10 @@ export function UpdateRoutingSection() {
                           size="sm"
                         />
                         <span className="flex flex-col leading-tight whitespace-nowrap">
-                          {transport.label}
+                          {t(transport.label)}
                           {configured(transport.id) ? null : (
                             <span className="text-muted-foreground text-xs">
-                              Not set up
+                              {t("Not set up")}
                             </span>
                           )}
                         </span>

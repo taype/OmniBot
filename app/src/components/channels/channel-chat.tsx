@@ -7,6 +7,7 @@ import {
   useCopilotKit,
 } from "@copilotkit/react-core/v2";
 import { observeApprovalAgent } from "@/lib/copilot/approval-context";
+import { type Translate, useI18n } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HandoffResumeNotice } from "@/components/computer/handoff-resume-notice";
@@ -86,34 +87,44 @@ function sameActivity(
   );
 }
 
-export function channelHistoryNotice({
-  restoring,
-  messageCount,
-  lastMessageAt,
-  historyAvailability,
-  historyReadFailed = false,
-  unreadable,
-}: {
-  restoring: boolean;
-  messageCount: number;
-  lastMessageAt: string | null;
-  historyAvailability: "ready" | "unavailable";
-  historyReadFailed?: boolean;
-  unreadable: number;
-}): string | null {
+export function channelHistoryNotice(
+  {
+    restoring,
+    messageCount,
+    lastMessageAt,
+    historyAvailability,
+    historyReadFailed = false,
+    unreadable,
+  }: {
+    restoring: boolean;
+    messageCount: number;
+    lastMessageAt: string | null;
+    historyAvailability: "ready" | "unavailable";
+    historyReadFailed?: boolean;
+    unreadable: number;
+  },
+  t: Translate = (english) => english,
+): string | null {
   if (restoring) return null;
 
   if (
     historyAvailability === "unavailable" &&
     (historyReadFailed || (messageCount === 0 && lastMessageAt !== null))
   ) {
-    return "Couldn't load earlier messages. You can keep using this conversation.";
+    return t(
+      "Couldn't load earlier messages. You can keep using this conversation.",
+    );
   }
 
   if (unreadable > 0) {
     return unreadable === 1
-      ? "One earlier message couldn't be read, so it isn't shown. Everything else is here."
-      : `${unreadable} earlier messages couldn't be read, so they aren't shown. Everything else is here.`;
+      ? t(
+          "One earlier message couldn't be read, so it isn't shown. Everything else is here.",
+        )
+      : t(
+          "{count} earlier messages couldn't be read, so they aren't shown. Everything else is here.",
+          { count: unreadable },
+        );
   }
 
   return null;
@@ -275,6 +286,7 @@ export function ChannelChat({
   channel: AgentChannel;
   runtimeAgentId: string;
 }) {
+  const { t } = useI18n();
   // The core attaches the frontend tool registry; direct agent runs do not.
   const { copilotkit } = useCopilotKit();
   // Mentions are scoped to the channel's permitted agents.
@@ -538,14 +550,17 @@ export function ChannelChat({
   useActiveBot(runtimeAgentId);
 
   const skillCommands = useSkillCommands(runtimeAgentId);
-  const historyNotice = channelHistoryNotice({
-    restoring,
-    messageCount: agent.messages.length,
-    lastMessageAt: channel.lastMessageAt,
-    historyAvailability,
-    historyReadFailed,
-    unreadable,
-  });
+  const historyNotice = channelHistoryNotice(
+    {
+      restoring,
+      messageCount: agent.messages.length,
+      lastMessageAt: channel.lastMessageAt,
+      historyAvailability,
+      historyReadFailed,
+      unreadable,
+    },
+    t,
+  );
 
   // Run failures arrive as events and are reported only for turns started in this mount.
   const [runError, setRunError] = useState<string | null>(null);
@@ -598,7 +613,7 @@ export function ChannelChat({
    * `agent.isRunning` looks like both and is neither. It reports the run on the wire, and a turn
    * that touches the browser is several runs in a row: the Bot asks for a click, the run ENDS so
    * the browser can answer it, and another run starts carrying the answer. The agent reports itself
-   * idle in every one of those gaps — the truth about the wire and a lie about the turn. OpenBot
+   * idle in every one of those gaps — the truth about the wire and a lie about the turn. OmniBot
    * registers every computer tool as a frontend tool, so the gaps open on ordinary work rather than
    * on some edge case, and anything keyed on the turn ending fires in the middle of one instead.
    *
@@ -805,7 +820,9 @@ export function ChannelChat({
     // Voice and typed requests share this turn boundary, including gaps between frontend tools.
     if (turnsRef.current > 0 || agentRef.current.isRunning) {
       throw new Error(
-        "This Bot is still working on something. Wait for it, or stop it first.",
+        t(
+          "This Bot is still working on something. Wait for it, or stop it first.",
+        ),
       );
     }
 
@@ -883,7 +900,7 @@ export function ChannelChat({
         send: (text) => sayRef.current(text),
       });
       if (started !== stopEpoch.current)
-        throw new Error("The user stopped this task before it completed.");
+        throw new Error(t("The user stopped this task before it completed."));
       return answer;
     },
   });

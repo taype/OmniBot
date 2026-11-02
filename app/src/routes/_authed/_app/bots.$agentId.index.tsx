@@ -5,6 +5,7 @@ import { BotProfile } from "@/components/bot-profile/profile";
 import { BotSettingsRows } from "@/components/bot-profile/settings-rows";
 import { PageShell } from "@/components/layout/page-shell";
 import { agentQueryOptions } from "@/lib/agents/queries";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/_app/bots/$agentId/")({
   component: BotProfilePage,
@@ -12,13 +13,14 @@ export const Route = createFileRoute("/_authed/_app/bots/$agentId/")({
 
 function BotProfilePage() {
   const { agentId } = Route.useParams();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const agent = useQuery(agentQueryOptions(agentId));
   const toRoster = () => void navigate({ to: "/bots" });
   return (
     <PageShell
       backButton={{ label: "Bots", linkProps: { to: "/bots" } }}
-      description="What this Bot is doing for you and how it's set up."
+      description={t("What this Bot is doing for you and how it's set up.")}
       title={agent.data?.name ?? "Bot"}
     >
       {agent.isPending ? null : agent.error ? (

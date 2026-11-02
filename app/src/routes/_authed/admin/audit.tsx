@@ -9,6 +9,7 @@ import {
 } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { useBotNames } from "@/lib/agents/bot-names";
+import { useI18n } from "@/lib/i18n";
 import {
   DID_NOT_HAPPEN_EVENT_TYPES,
   eventTypeFilter,
@@ -63,6 +64,7 @@ const FILTERS = [
 ] as const;
 
 function AuditPage() {
+  const { t } = useI18n();
   const [search, setSearch] = useState<string>(FILTERS[0].search);
   const events = useQuery(auditEventsQueryOptions(search));
   const rows = (events.data?.events ?? []) as AuditEvent[];
@@ -125,16 +127,18 @@ function AuditPage() {
             variant="outline"
           >
             <IconDownload />
-            {exporting ? "Exporting…" : "Export CSV"}
+            {exporting ? t("Exporting…") : t("Export CSV")}
           </Button>
           <Button onClick={() => events.refetch()} size="sm" variant="ghost">
             <IconRefresh />
-            Refresh
+            {t("Refresh")}
           </Button>
         </div>
       }
-      description="Every action a Bot took, and every one this deployment's policy refused."
-      title="Audit"
+      description={t(
+        "Every action a Bot took, and every one this deployment's policy refused.",
+      )}
+      title={t("Audit")}
       width="wide"
     >
       <PageSection>
@@ -148,7 +152,7 @@ function AuditPage() {
               /* The fill is the state, as on every other set of switches in the app. */
               variant={search === filter.search ? "default" : "outline"}
             >
-              {filter.label}
+              {t(filter.label)}
             </Button>
           ))}
         </div>
@@ -160,27 +164,29 @@ function AuditPage() {
         ) : null}
         {exportCapped ? (
           <p className="mt-4 text-muted-foreground text-sm" role="status">
-            The file has the newest {exportCapped.toLocaleString()} events, not
-            all of them. Narrow the filter or dates to export the rest.
+            {t(
+              "The file has the newest {count} events, not all of them. Narrow the filter or dates to export the rest.",
+              { count: exportCapped.toLocaleString() },
+            )}
           </p>
         ) : null}
         {events.isPending ? null : events.isError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Couldn't load the audit log. Reload the page.
+            {t("Couldn't load the audit log. Reload the page.")}
           </p>
         ) : rows.length === 0 ? (
-          <PageEmpty>No events match this filter yet.</PageEmpty>
+          <PageEmpty>{t("No events match this filter yet.")}</PageEmpty>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full text-left text-sm">
               <thead className="text-muted-foreground text-xs uppercase">
                 <tr className="border-border border-b">
-                  <th className="px-4 py-2 font-medium">When</th>
-                  <th className="px-4 py-2 font-medium">What</th>
-                  <th className="px-4 py-2 font-medium">On</th>
-                  <th className="px-4 py-2 font-medium">Bot</th>
-                  <th className="px-4 py-2 font-medium">Started by</th>
-                  <th className="px-4 py-2 font-medium">Decision</th>
+                  <th className="px-4 py-2 font-medium">{t("When")}</th>
+                  <th className="px-4 py-2 font-medium">{t("What")}</th>
+                  <th className="px-4 py-2 font-medium">{t("On")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Bot")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Started by")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Decision")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,13 +209,14 @@ function StartedBy({
   event: AuditEvent;
   nameFor: (botId: string) => string;
 }) {
+  const { t } = useI18n();
   if (event.initiatorKind === "routine") {
     return (
       <span
         className="font-medium text-amber-600 dark:text-amber-500"
         title={event.initiatorId ?? undefined}
       >
-        A routine
+        {t("A routine")}
       </span>
     );
   }
@@ -220,8 +227,8 @@ function StartedBy({
         title={event.initiatorId ?? undefined}
       >
         {event.initiatorId
-          ? `Handed on by ${nameFor(event.initiatorId)}`
-          : "Handed on"}
+          ? t("Handed on by {name}", { name: nameFor(event.initiatorId) })
+          : t("Handed on")}
       </span>
     );
   }
@@ -235,15 +242,17 @@ function StartedBy({
         title={event.initiatorId ?? undefined}
       >
         {event.initiatorKind === "memory"
-          ? "A memory source"
-          : "A responsibility"}
+          ? t("A memory source")
+          : t("A responsibility")}
       </span>
     );
   }
   if (event.initiatorKind === "deployment") {
-    return <span className="text-muted-foreground">This deployment</span>;
+    return (
+      <span className="text-muted-foreground">{t("This deployment")}</span>
+    );
   }
-  return <span className="text-muted-foreground">A person</span>;
+  return <span className="text-muted-foreground">{t("A person")}</span>;
 }
 
 function Row({
@@ -253,6 +262,7 @@ function Row({
   event: AuditEvent;
   nameFor: (botId: string) => string;
 }) {
+  const { t } = useI18n();
   const payload = event.payload ?? {};
   const decision = (payload.decision ?? {}) as {
     allowed?: boolean;
@@ -278,10 +288,10 @@ function Row({
   const routed =
     event.eventType === "channel.routed"
       ? payload.viaMention === true
-        ? "The person chose this Bot"
+        ? t("The person chose this Bot")
         : payload.fallback === true
-          ? "Sent to the default Bot"
-          : "Sent to the Bot it was meant for"
+          ? t("Sent to the default Bot")
+          : t("Sent to the Bot it was meant for")
       : null;
   // Allowed by policy but not carried out. A stalled turn belongs in the same family: the Bot was
   // asked and the answer never arrived. Colour is how this table is read, and a row left in the
@@ -319,7 +329,10 @@ function Row({
           <span className="font-mono text-xs">
             {typeof payload.offered === "number" &&
             typeof payload.granted === "number"
-              ? `${payload.offered} of ${payload.granted} tools`
+              ? t("{offered} of {granted} tools", {
+                  offered: payload.offered,
+                  granted: payload.granted,
+                })
               : "-"}
           </span>
         ) : /* Named targets and file paths are the audit subject before page elements. */
@@ -382,8 +395,12 @@ function Row({
           }
         >
           {routed ??
-            DECISIONS[event.eventType] ??
-            (refused ? "Blocked" : failed ? "Did not happen" : "Allowed")}
+            t(DECISIONS[event.eventType]) ??
+            (refused
+              ? t("Blocked")
+              : failed
+                ? t("Did not happen")
+                : t("Allowed"))}
         </span>
         {/* Refusal reasons mirror the conversation-facing reason. */}
         {(event.eventType === "component.refused" ||
@@ -402,7 +419,7 @@ function Row({
         {event.eventType === "mcp.tools_discovered" &&
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {DISCOVERY_REASONS[payload.reason] ?? payload.reason}
+            {t(DISCOVERY_REASONS[payload.reason] ?? payload.reason)}
             {Array.isArray(payload.skills) && payload.skills.length > 0
               ? `: ${payload.skills.join(", ")}`
               : ""}
@@ -436,7 +453,7 @@ function Row({
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
             {payload.reason}
-            <span className="italic">, reported by the Bot itself</span>
+            <span className="italic">{t(", reported by the Bot itself")}</span>
           </div>
         ) : null}
         {failed && typeof payload.failure === "string" ? (
@@ -462,7 +479,7 @@ function Row({
         decision.allowed === false &&
         decision.carriedOut ? (
           <div className="text-xs text-muted-foreground">
-            dry-run: recorded, not enforced
+            {t("dry-run: recorded, not enforced")}
           </div>
         ) : null}
       </td>

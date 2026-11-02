@@ -422,7 +422,7 @@ export function createAuth(
                 },
               });
               throw new APIError("FORBIDDEN", {
-                message: "Your access to OpenBot has been removed.",
+                message: "Your access to OmniBot has been removed.",
               });
             }
             return { data: user };
@@ -492,7 +492,7 @@ export function createAuth(
                 },
               });
               throw new APIError("FORBIDDEN", {
-                message: "Your access to OpenBot has been removed.",
+                message: "Your access to OmniBot has been removed.",
               });
             }
             return { data: session };

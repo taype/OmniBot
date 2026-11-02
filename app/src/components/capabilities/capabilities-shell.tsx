@@ -2,6 +2,7 @@ import { Link, type LinkOptions, useMatchRoute } from "@tanstack/react-router";
 import type * as React from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n";
 
 /**
  * What a person gives their own Bots beyond the apps they connect: the skills they write and what
@@ -21,9 +22,13 @@ const TABS = [
  * it.
  */
 export function CapabilitiesTabs() {
+  const { t } = useI18n();
   const matchRoute = useMatchRoute();
   return (
-    <nav aria-label="Capabilities" className="mt-6 flex items-center gap-1">
+    <nav
+      aria-label={t("Capabilities")}
+      className="mt-6 flex items-center gap-1"
+    >
       {TABS.map((tab) => (
         <Button
           key={tab.label}
@@ -34,7 +39,7 @@ export function CapabilitiesTabs() {
               : "ghost"
           }
         >
-          {tab.label}
+          {t(tab.label)}
         </Button>
       ))}
     </nav>
@@ -51,8 +56,9 @@ export function CapabilitiesTabs() {
  * open.
  */
 export function CapabilitiesShell({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   return (
-    <PageShell className="@container" title="Capabilities">
+    <PageShell className="@container" title={t("Capabilities")}>
       <CapabilitiesTabs />
       {children}
     </PageShell>

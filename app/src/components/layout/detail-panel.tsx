@@ -4,6 +4,7 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { EASE_OUT } from "@/lib/motion";
+import { useI18n } from "@/lib/i18n";
 
 /**
  * A main pane with details beside it when there is room, or in a sheet on narrow windows.
@@ -45,6 +46,7 @@ export function DetailPanel({
   detailWidth?: number;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   // Reduced motion keeps the fade, which explains the change, and drops the movement.
   const shouldReduceMotion = useReducedMotion();
   const container = useRef<HTMLDivElement>(null);
@@ -106,7 +108,7 @@ export function DetailPanel({
               </div>
               <div className="flex flex-row gap-1.5">
                 <Button
-                  aria-label="Close details"
+                  aria-label={t("Close details")}
                   onClick={onClose}
                   variant="ghost"
                   size="icon"

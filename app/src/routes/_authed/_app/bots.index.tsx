@@ -5,6 +5,7 @@ import { NewBotSheet } from "@/components/agents/new-bot-sheet";
 import { BotRoster } from "@/components/bots/bot-roster";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n";
 
 /** Just longer than the sheet's 200ms exit, so it has finished sliding away before the page changes. */
 const SHEET_CLOSE_MS = 240;
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/_authed/_app/bots/")({
 });
 
 function BotsPage() {
+  const { t } = useI18n();
   const { new: creating } = Route.useSearch();
   const navigate = Route.useNavigate();
   return (
@@ -29,11 +31,13 @@ function BotsPage() {
           variant="ghost"
         >
           <IconPlus />
-          New Bot
+          {t("New Bot")}
         </Button>
       }
-      description="Your Bots and the ones shared with you. See what each is doing and what it needs from you."
-      title="Bots"
+      description={t(
+        "Your Bots and the ones shared with you. See what each is doing and what it needs from you.",
+      )}
+      title={t("Bots")}
     >
       <BotRoster />
       <NewBotSheet

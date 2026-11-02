@@ -3,6 +3,7 @@ import {
   IconChecks,
   IconChevronRight,
   IconCode,
+  IconCpu,
   IconDeviceDesktop,
   IconFileText,
   IconKey,
@@ -23,6 +24,7 @@ import {
   PageShell,
 } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
+import { useI18n } from "@/lib/i18n";
 import {
   Item,
   ItemContent,
@@ -54,7 +56,7 @@ const SECTIONS: {
 }[] = [
   {
     title: "What Bots can reach",
-    description: "What a Bot can touch outside OpenBot, and the limits on it.",
+    description: "What a Bot can touch outside OmniBot, and the limits on it.",
     items: [
       {
         title: "Credentials",
@@ -87,9 +89,16 @@ const SECTIONS: {
     description: "Apps, skills and interface pieces every Bot can use.",
     items: [
       {
+        title: "Model",
+        description:
+          "The model every Bot answers on: provider, endpoint, model name and key.",
+        icon: IconCpu,
+        linkOptions: { to: "/admin/model" },
+      },
+      {
         title: "Plugins",
         description:
-          "The services OpenBot can reach, and which Bots can use them.",
+          "The services OmniBot can reach, and which Bots can use them.",
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
@@ -153,7 +162,7 @@ const SECTIONS: {
     items: [
       {
         title: "Audit",
-        description: "Every action taken in OpenBot, and who took it.",
+        description: "Every action taken in OmniBot, and who took it.",
         icon: IconListDetails,
         linkOptions: { to: "/admin/audit" },
       },
@@ -162,16 +171,19 @@ const SECTIONS: {
 ];
 
 function RouteComponent() {
+  const { t } = useI18n();
   return (
     <PageShell
-      description="Settings for everybody in this deployment. A change here affects every person and every Bot."
-      title="Admin"
+      description={t(
+        "Settings for everybody in this deployment. A change here affects every person and every Bot.",
+      )}
+      title={t("Admin")}
     >
       {SECTIONS.map((section) => (
         <PageSection
-          description={section.description || undefined}
+          description={section.description ? t(section.description) : undefined}
           key={section.title}
-          title={section.title}
+          title={t(section.title)}
         >
           <PageRows>
             {section.items.map((item, index) => (
@@ -188,8 +200,8 @@ function RouteComponent() {
                     <item.icon className="size-4 text-muted-foreground" />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>{item.title}</ItemTitle>
-                    <ItemDescription>{item.description}</ItemDescription>
+                    <ItemTitle>{t(item.title)}</ItemTitle>
+                    <ItemDescription>{t(item.description)}</ItemDescription>
                   </ItemContent>
                   <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                 </Item>

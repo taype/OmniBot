@@ -10,6 +10,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { componentListQueryOptions } from "@/lib/components/queries";
+import { useI18n } from "@/lib/i18n";
 
 /**
  * What a Bot can draw, for the person it draws for.
@@ -24,24 +25,27 @@ export const Route = createFileRoute("/_authed/settings/components-gallery/")({
 });
 
 function RouteComponent() {
+  const { t } = useI18n();
   const components = useQuery(componentListQueryOptions());
   const published = components.data?.filter((component) => component.published);
 
   return (
     <PageShell
-      description="What a Bot can draw in a conversation. An admin chooses which ones each Bot can use."
-      title="Components gallery"
+      description={t(
+        "What a Bot can draw in a conversation. An admin chooses which ones each Bot can use.",
+      )}
+      title={t("Components gallery")}
     >
       {components.isPending ? null : components.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Couldn't load components. Reload the page.
+          {t("Couldn't load components. Reload the page.")}
         </p>
       ) : published?.length === 0 ? (
         <Empty className="mt-12 min-h-[30dvh] border border-dashed">
           <EmptyHeader>
-            <EmptyTitle>Nothing published yet</EmptyTitle>
+            <EmptyTitle>{t("Nothing published yet")}</EmptyTitle>
             <EmptyDescription className="text-pretty">
-              When an admin publishes a component, it will show up here.
+              {t("When an admin publishes a component, it will show up here.")}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -992,8 +992,8 @@ export class BrokerReturnUrlError extends BrokerRefusalError {
     const { vendor } = BROKERED_PROFILE[provider];
     super(
       address === "unbuilt"
-        ? "OpenBot has no address to bring you back to, so connecting didn't start. Nothing was asked of your account. Ask an admin to set OpenBot's address."
-        : "OpenBot's return address isn't a web address, so connecting didn't start. Nothing was asked of your account. Ask an admin to fix OpenBot's address.",
+        ? "OmniBot has no address to bring you back to, so connecting didn't start. Nothing was asked of your account. Ask an admin to set OmniBot's address."
+        : "OmniBot's return address isn't a web address, so connecting didn't start. Nothing was asked of your account. Ask an admin to fix OmniBot's address.",
     );
     this.operatorMessage =
       address === "unbuilt"

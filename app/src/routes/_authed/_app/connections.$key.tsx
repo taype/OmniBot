@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useI18n } from "@/lib/i18n";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import {
   brokeredProvenance,
@@ -100,7 +101,7 @@ export const Route = createFileRoute("/_authed/_app/connections/$key")({
   component: RouteComponent,
   /*
    * `?linked=` is how the GitHub account-link callback reports back to GitHub's page: `github` on
-   * success, `github-taken` when that account belongs to another OpenBot user, `failed` otherwise.
+   * success, `github-taken` when that account belongs to another OmniBot user, `failed` otherwise.
    *
    * `?action=` is the verifier's redirect saying WHICH action the consent just completed was for,
    * so an app's page can land on it rather than on the app.
@@ -133,6 +134,7 @@ function RouteComponent() {
 }
 
 function AppConnectionPage() {
+  const { t } = useI18n();
   const { key } = useParams({
     from: "/_authed/_app/connections/$key",
   });
@@ -309,11 +311,11 @@ function AppConnectionPage() {
    * whole of its state defaulted to "you have never connected this".
    */
   if (plugins.isPending || connections.isPending) {
-    return <PageShell title="Account">{null}</PageShell>;
+    return <PageShell title={t("Account")}>{null}</PageShell>;
   }
 
   const back = {
-    label: "Connections",
+    label: t("Connections"),
     linkProps: { to: "/connections" as const },
   };
 
@@ -337,8 +339,9 @@ function AppConnectionPage() {
     return (
       <PageShell backButton={back} title={server?.title ?? key}>
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Couldn't load this connection. Reload the page, or ask an admin if it
-          keeps happening.
+          {t(
+            "Couldn't load this connection. Reload the page, or ask an admin if it keeps happening.",
+          )}
         </p>
       </PageShell>
     );
@@ -353,8 +356,9 @@ function AppConnectionPage() {
     return (
       <PageShell backButton={back} title={key}>
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Couldn't load this app. Reload the page, or ask an admin if it keeps
-          happening.
+          {t(
+            "Couldn't load this app. Reload the page, or ask an admin if it keeps happening.",
+          )}
         </p>
       </PageShell>
     );
@@ -371,8 +375,10 @@ function AppConnectionPage() {
     return (
       <PageShell backButton={back} title={server.title}>
         <PageEmpty>
-          {server.title} isn't set up yet. An admin has to turn it on before
-          anyone can connect it.
+          {t(
+            "{name} isn't set up yet. An admin has to turn it on before anyone can connect it.",
+            { name: server.title },
+          )}
         </PageEmpty>
       </PageShell>
     );
@@ -412,9 +418,11 @@ function AppConnectionPage() {
           <PageRows className="mt-0">
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Team account</ItemTitle>
+                <ItemTitle>{t("Team account")}</ItemTitle>
                 <ItemDescription>
-                  Shared by your organisation. Bots act as the team account.
+                  {t(
+                    "Shared by your organisation. Bots act as the team account.",
+                  )}
                 </ItemDescription>
               </ItemContent>
             </Item>
@@ -446,17 +454,19 @@ function AppConnectionPage() {
   if (brokered && server) {
     /* Bound once because the row below is told it twice — once inside the whole disconnected
        sentence and once on its own — and two copies of it would drift. */
-    const reassurance = "No Bot can use this as you.";
+    const reassurance = t("No Bot can use this as you.");
     /* Where the next step is. A broker that approves one action at a time has no whole-app Connect,
        so the sentence points at the action list underneath instead of a button that is not there. */
     const trip = perActionGrants
-      ? "Authorize the actions you want below."
-      : `Connecting takes you to ${server.title} to approve access.`;
+      ? t("Authorize the actions you want below.")
+      : t("Connecting takes you to {vendor} to approve access.", {
+          vendor: server.title,
+        });
 
     return (
       <PageShell
         backButton={back}
-        description="Bots use this as you, and see only what you can see."
+        description={t("Bots use this as you, and see only what you can see.")}
         title={server.title}
       >
         {notice ? (
@@ -483,7 +493,10 @@ function AppConnectionPage() {
               /* Said beside the button rather than after it: disconnecting ends the account at
                  Composio, so what it undoes is not the row here but the grant on your own mailbox,
                  and connecting again is a fresh consent. */
-              connectedDescription={`Bots you allow use your ${server.title} as you. Disconnecting removes their access everywhere.`}
+              connectedDescription={t(
+                "Bots you allow use your {vendor} as you. Disconnecting removes their access everywhere.",
+                { vendor: server.title },
+              )}
               disconnectedDescription={`${reassurance} ${trip}`}
               /* What is true either way. The trip to Composio is not — an app whose key somebody
                  types never leaves this page — but which Bots can read this person's mail is the
@@ -518,13 +531,15 @@ function AppConnectionPage() {
     return (
       <PageShell
         backButton={back}
-        description="You don't connect this app yourself."
+        description={t("You don't connect this app yourself.")}
         title={entry?.title ?? key}
       >
         <PageEmpty>
           {entry
-            ? "Bots use one shared account for this app, the same for everybody."
-            : "OpenBot has no app by that name."}
+            ? t(
+                "Bots use one shared account for this app, the same for everybody.",
+              )
+            : t("OmniBot has no app by that name.")}
         </PageEmpty>
       </PageShell>
     );
@@ -549,13 +564,18 @@ function AppConnectionPage() {
             <ItemContent>
               {/* Not "Connect your account": the row is also the connected state, and a title has to
                   read for both. */}
-              <ItemTitle>Your account</ItemTitle>
+              <ItemTitle>{t("Your account")}</ItemTitle>
               <ItemDescription>
                 {!enabled
-                  ? "Not available yet. An admin has to turn this on first."
+                  ? t("Not available yet. An admin has to turn this on first.")
                   : connection
-                    ? "Bots you allow use this as you, and see only what you can see."
-                    : `No Bot can use this as you. Connecting takes you to ${entry.vendor} to approve access.`}
+                    ? t(
+                        "Bots you allow use this as you, and see only what you can see.",
+                      )
+                    : t(
+                        "No Bot can use this as you. Connecting takes you to {vendor} to approve access.",
+                        { vendor: entry.vendor },
+                      )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -597,7 +617,7 @@ function AppConnectionPage() {
                          * had not, which is the one outcome worse than not offering it.
                          */
                         setNotice(
-                          `You can't disconnect here yet. To stop access now, remove OpenBot in your ${entry.vendor} account's third-party access settings.`,
+                          `You can't disconnect here yet. To stop access now, remove OmniBot in your ${entry.vendor} account's third-party access settings.`,
                         )
                       }
                       className="whitespace-nowrap"
@@ -609,7 +629,7 @@ function AppConnectionPage() {
                 </DropdownMenu>
               ) : (
                 /*
-                 * The arrow says this leaves OpenBot. It does: the next thing on screen is the
+                 * The arrow says this leaves OmniBot. It does: the next thing on screen is the
                  * vendor's own consent page, and a control that navigates away should look like one.
                  */
                 <Button
@@ -622,7 +642,7 @@ function AppConnectionPage() {
                   type="button"
                   variant="outline"
                 >
-                  Connect
+                  {t("Connect")}
                   <IconArrowUpRight />
                 </Button>
               )}
@@ -633,22 +653,26 @@ function AppConnectionPage() {
 
       {connection ? (
         <PageSection
-          description={`What you allowed, as ${entry.vendor} recorded it. This can be less than OpenBot asked for.`}
-          title="Access"
+          description={t(
+            "What you allowed, as {vendor} recorded it. This can be less than OmniBot asked for.",
+            { vendor: entry.vendor },
+          )}
+          title={t("Access")}
         >
           <PageRows>
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Allowed</ItemTitle>
+                <ItemTitle>{t("Allowed by you")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  {connection.scope || `${entry.vendor} didn't say.`}
+                  {connection.scope ||
+                    t("{vendor} didn't say.", { vendor: entry.vendor })}
                 </ItemDescription>
               </ItemContent>
             </Item>
             <Separator />
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Connected</ItemTitle>
+                <ItemTitle>{t("Connected")}</ItemTitle>
               </ItemContent>
               <ItemActions>
                 <span className="text-muted-foreground text-xs">

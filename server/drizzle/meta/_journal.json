@@ -428,6 +428,20 @@
       "when": 1792608466985,
       "tag": "0060_app_access_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793454405762,
+      "tag": "0061_lively_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793457795578,
+      "tag": "0062_smiling_lyja",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { deleteSavedLoginMutationOptions } from "@/lib/passwords/mutations";
 import { savedLoginsQueryOptions } from "@/lib/passwords/queries";
+import { useI18n } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/settings/passwords")({
@@ -32,27 +33,32 @@ export const Route = createFileRoute("/_authed/settings/passwords")({
  * it. A saved login is used only when you confirm it in a sign-in form.
  */
 function PasswordsPage() {
+  const { t } = useI18n();
   const logins = useQuery(savedLoginsQueryOptions());
   const remove = useMutation(deleteSavedLoginMutationOptions(queryClient));
   return (
     <PageShell
-      title="Passwords"
-      description="Logins you saved when signing a Bot in to a website. Bots never see them, and you confirm each use."
+      title={t("Passwords")}
+      description={t(
+        "Logins you saved when signing a Bot in to a website. Bots never see them, and you confirm each use.",
+      )}
     >
-      <PageSection title="Saved logins">
+      <PageSection title={t("Saved logins")}>
         {logins.isPending ? null : logins.error ? (
           <p className="text-destructive text-sm" role="alert">
-            Couldn't load your passwords. Reload the page.
+            {t("Couldn't load your passwords. Reload the page.")}
           </p>
         ) : !logins.data.passwordManager ? (
           <PageEmpty>
-            An admin has turned off saved passwords. Your logins are kept but
-            won't be offered.
+            {t(
+              "An admin has turned off saved passwords. Your logins are kept but won't be offered.",
+            )}
           </PageEmpty>
         ) : logins.data.logins.length === 0 ? (
           <PageEmpty>
-            No saved logins. Choose Save to Passwords when you sign a Bot in to
-            a website.
+            {t(
+              "No saved logins. Choose Save to Passwords when you sign a Bot in to a website.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -68,13 +74,15 @@ function PasswordsPage() {
                     <ItemDescription>
                       {login.username}
                       {login.lastUsedAt
-                        ? ` · last used ${new Date(login.lastUsedAt).toLocaleDateString()}`
-                        : " · never used"}
+                        ? ` · ${t("last used {date}", { date: new Date(login.lastUsedAt).toLocaleDateString() })}`
+                        : ` · ${t("never used")}`}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
                     <Button
-                      aria-label={`Delete login for ${login.origin}`}
+                      aria-label={t("Delete login for {origin}", {
+                        origin: login.origin,
+                      })}
                       size="sm"
                       variant="ghost"
                       disabled={remove.isPending}

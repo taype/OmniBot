@@ -3,6 +3,7 @@ import {
   IconBuildingBank,
   IconChecks,
   IconCode,
+  IconCpu,
   IconDeviceDesktop,
   IconFileText,
   IconKey,
@@ -25,6 +26,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useI18n } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
@@ -72,6 +74,11 @@ const GROUPS: {
   {
     label: "What Bots can do",
     items: [
+      {
+        title: "Model",
+        icon: IconCpu,
+        linkOptions: { to: "/admin/model" },
+      },
       {
         title: "Plugins",
         icon: IconPuzzle,
@@ -129,6 +136,7 @@ const GROUPS: {
 export function AdminSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const { t } = useI18n();
   return (
     <Sidebar {...props}>
       {/*
@@ -147,7 +155,7 @@ export function AdminSidebar({
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
                   <IconArrowLeft className="mr-2 h-4 w-4" />
-                  Back to app
+                  {t("Back to app")}
                 </Link>
               )}
             />
@@ -170,7 +178,7 @@ export function AdminSidebar({
                     activeProps={{ className: "bg-foreground/5" }}
                     {...props}
                   >
-                    Overview
+                    {t("Overview")}
                   </Link>
                 )}
               />
@@ -179,7 +187,7 @@ export function AdminSidebar({
         </SidebarGroup>
         {GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>
             <SidebarMenu className="gap-px">
               {group.items.map((item) => (
                 <SidebarMenuItem key={item.title}>
@@ -191,7 +199,7 @@ export function AdminSidebar({
                         {...props}
                       >
                         <item.icon className="mr-2 h-4 w-4" />
-                        {item.title}
+                        {t(item.title)}
                       </Link>
                     )}
                   />

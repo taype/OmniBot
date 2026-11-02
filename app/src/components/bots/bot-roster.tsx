@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
+import { useI18n } from "@/lib/i18n";
 import { groupRoster } from "@/lib/agents/roster";
 import {
   type BotAttention,
@@ -36,6 +37,7 @@ import {
  * This replaces three screens — Bots, Agents and Team Bots — that listed the same Bots three ways.
  */
 export function BotRoster() {
+  const { t } = useI18n();
   const agents = useQuery(agentListQueryOptions());
   const hidden = useQuery(agentListQueryOptions(true));
   const attention = useQuery(botAttentionQueryOptions());
@@ -46,7 +48,7 @@ export function BotRoster() {
   if (agents.data === undefined) {
     return (
       <p className="mt-6 text-destructive text-sm" role="alert">
-        Couldn't load your Bots. Reload the page.
+        {t("Couldn't load your Bots. Reload the page.")}
       </p>
     );
   }
@@ -63,33 +65,33 @@ export function BotRoster() {
   return (
     <>
       {needsYou.length ? (
-        <PageSection title="Needs you">
+        <PageSection title={t("Needs you")}>
           <RosterRows agents={needsYou} byId={byId} />
         </PageSection>
       ) : null}
       {pinned.length ? (
-        <PageSection title="Pinned">
+        <PageSection title={t("Pinned")}>
           <RosterRows agents={pinned} byId={byId} />
         </PageSection>
       ) : null}
-      <PageSection title="Yours">
+      <PageSection title={t("Yours")}>
         {yours.length ? (
           <RosterRows agents={yours} byId={byId} />
         ) : (
           <PageEmpty>
             {yoursPinned
-              ? "Your Bots are all pinned above."
+              ? t("Your Bots are all pinned above.")
               : yoursWaiting
-                ? "Your Bots are all under Needs you."
-                : "You don't have any Bots yet. Create one with New Bot."}
+                ? t("Your Bots are all under Needs you.")
+                : t("You don't have any Bots yet. Create one with New Bot.")}
           </PageEmpty>
         )}
       </PageSection>
-      <PageSection title="Shared with you">
+      <PageSection title={t("Shared with you")}>
         {shared.length ? (
           <RosterRows agents={shared} byId={byId} />
         ) : (
-          <PageEmpty>Nobody has shared a Bot with you yet.</PageEmpty>
+          <PageEmpty>{t("Nobody has shared a Bot with you yet.")}</PageEmpty>
         )}
       </PageSection>
       {hidden.data?.length ? (
@@ -110,16 +112,19 @@ function HiddenSection({
   agents: AgentProfile[];
   byId: Map<string, BotAttention>;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   return (
     <PageSection
       action={
         <Button onClick={() => setOpen(!open)} size="sm" variant="ghost">
-          {open ? "Hide" : "Show"}
+          {open ? t("Hide") : t("Show")}
         </Button>
       }
-      description={`${agents.length} ${agents.length === 1 ? "Bot" : "Bots"} you hid. Only your list changes.`}
-      title="Hidden"
+      description={t("{count} Bots you hid. Only your list changes.", {
+        count: agents.length,
+      })}
+      title={t("Hidden")}
     >
       {open ? <RosterRows agents={agents} byId={byId} /> : null}
     </PageSection>
@@ -133,12 +138,13 @@ function RosterRows({
   agents: AgentProfile[];
   byId: Map<string, BotAttention>;
 }) {
+  const { t } = useI18n();
   return (
     <PageRows>
       {agents.map((agent, index) => {
         const state = byId.get(agent.id);
         const summary = state
-          ? [state.paused ? "Paused" : "", attentionSummary(state)]
+          ? [state.paused ? t("Paused") : "", attentionSummary(state, t)]
               .filter(Boolean)
               .join(" · ")
           : "";

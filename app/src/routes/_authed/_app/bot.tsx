@@ -8,6 +8,7 @@ import { DetailPanel } from "@/components/layout/detail-panel";
 import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
 import { Button } from "@/components/ui/button";
 import { defaultAgentId } from "@/lib/agents/default-agent";
+import { useI18n } from "@/lib/i18n";
 import {
   type AgentProfile,
   agentKeys,
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/_authed/_app/bot")({
  * WHATEVER THIS DEPLOYMENT ACTUALLY HAS. The default used to be a hardcoded `risk-analyst`, a name
  * from a tenant package this one is not: on a clone that ships anything else, opening this screen
  * without naming a Bot took the whole page down to an unstyled error boundary, because the chat
- * throws when asked for an agent the runtime never synced. OpenBot exists to be forked, so a Bot
+ * throws when asked for an agent the runtime never synced. OmniBot exists to be forked, so a Bot
  * name written into a route is a defect on every fork but the one it came from.
  *
  * A named Bot that this deployment does not have is answered in a sentence rather than thrown,
@@ -75,6 +76,7 @@ async function loadExplicitBot(agentId: string): Promise<BotDetailLookup> {
 }
 
 function RouteComponent() {
+  const { t } = useI18n();
   const search = Route.useSearch();
   const agent = search.agent === "" ? undefined : search.agent;
   const {
@@ -106,7 +108,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Couldn't load your Bots. Reload the page.
+          {t("Couldn't load your Bots. Reload the page.")}
         </p>
       </div>
     );
@@ -115,7 +117,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Couldn't load this Bot. Reload the page.
+          {t("Couldn't load this Bot. Reload the page.")}
         </p>
       </div>
     );
@@ -125,8 +127,8 @@ function RouteComponent() {
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-muted-foreground text-sm">
           {agent
-            ? `There's no Bot called "${agent}".`
-            : "There are no Bots yet."}
+            ? t("There's no Bot called “{name}”.", { name: agent })
+            : t("There are no Bots yet.")}
         </p>
       </div>
     );
@@ -140,6 +142,7 @@ function RouteComponent() {
 }
 
 function BotChat({ agentId, name }: { agentId: string; name: string }) {
+  const { t } = useI18n();
   // Tool calls here act on this Bot's own computer.
   useActiveBot(agentId);
   /*
@@ -167,7 +170,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
 
   return (
     <DetailPanel
-      title="Computer"
+      title={t("Computer")}
       open={watch === true}
       onClose={() => showComputer(false)}
       detail={<ComputerViewPanel agentId={agentId} name={name} />}
@@ -197,12 +200,12 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
               />
               <Button onClick={startNew} size="sm" variant="ghost">
                 <IconPlus />
-                New chat
+                {t("New chat")}
               </Button>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Ask it to open a page and watch it work.
+            {t("Ask it to open a page and watch it work.")}
           </p>
         </header>
         {/*
@@ -216,7 +219,9 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
             data-testid="bot-chat-history-unavailable"
             role="alert"
           >
-            Couldn't load earlier messages. The Bot is answering without them.
+            {t(
+              "Couldn't load earlier messages. The Bot is answering without them.",
+            )}
           </p>
         ) : null}
         {/*

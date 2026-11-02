@@ -53,6 +53,7 @@ import {
 } from "@/lib/channels/queries";
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
 import { appConfig } from "@/lib/generated/application-config";
+import { useI18n } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import {
@@ -218,6 +219,7 @@ function ChannelRow({
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const emphasis = useMessageListEmphasis();
+  const { t } = useI18n();
   const { data: currentUser } = useQuery(currentUserQueryOptions());
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -257,7 +259,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               )}
             />
             <Button
-              aria-label="New conversation"
+              aria-label={t("New conversation")}
               size="icon"
               variant="ghost"
               render={(props) => (
@@ -281,9 +283,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <InputGroup className="bg-background text-sm rounded-lg h-9">
                 <InputGroupInput
-                  aria-label="Search conversations"
+                  aria-label={t("Search conversations")}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search…"
+                  placeholder={t("Search…")}
                   value={search}
                 />
                 <InputGroupAddon>
@@ -304,13 +306,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <EmptyHeader>
                     <EmptyTitle>
                       {channels.hasNextPage
-                        ? "No loaded conversations match your search"
-                        : "No conversations match your search"}
+                        ? t("No loaded conversations match your search")
+                        : t("No conversations match your search")}
                     </EmptyTitle>
                     <EmptyDescription className="text-pretty">
                       {channels.hasNextPage
-                        ? "Load older conversations to search more of your history."
-                        : `No conversation has “${search.trim()}” in its name or latest message.`}
+                        ? t(
+                            "Load older conversations to search more of your history.",
+                          )
+                        : t(
+                            "No conversation has “{query}” in its name or latest message.",
+                            { query: search.trim() },
+                          )}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -320,9 +327,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="py-4">
                 <Empty className="border border-dashed min-h-[40dvh]">
                   <EmptyHeader>
-                    <EmptyTitle>No conversations yet</EmptyTitle>
+                    <EmptyTitle>{t("No conversations yet")}</EmptyTitle>
                     <EmptyDescription className="text-pretty">
-                      Start a conversation with a Bot and it shows up here.
+                      {t(
+                        "Start a conversation with a Bot and it shows up here.",
+                      )}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -362,7 +371,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="size-[28px] flex items-center justify-center">
                 <IconBolt />
               </div>
-              <span className="text-sm">Bots</span>
+              <span className="text-sm">{t("Bots")}</span>
               {/* What waits on you across every Bot; Bots lists them first. */}
               <BotsNavBadge />
             </SidebarMenuButton>
@@ -388,7 +397,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="size-[28px] flex items-center justify-center">
                 <IconBox />
               </div>
-              <span className="text-sm trackint-tight">Capabilities</span>
+              <span className="text-sm trackint-tight">
+                {t("Capabilities")}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -407,7 +418,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="size-[28px] flex items-center justify-center">
                 <IconPlug />
               </div>
-              <span className="text-sm trackint-tight">Connections</span>
+              <span className="text-sm trackint-tight">{t("Connections")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -435,7 +446,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     render={<Link {...adminLinkOptions} />}
                   >
                     <IconShieldLock />
-                    Admin
+                    {t("Admin")}
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem
@@ -443,7 +454,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   render={<Link {...settingsLinkOptions} />}
                 >
                   <IconSettings />
-                  Settings
+                  {t("Settings")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className={userMenuItemClassName}
@@ -452,7 +463,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   variant="destructive"
                 >
                   <IconLogout />
-                  Sign out
+                  {t("Sign out")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

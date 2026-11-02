@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useI18n } from "@/lib/i18n";
 import {
   type ApprovalRuleInput,
   type ApprovalRuleRow,
@@ -67,6 +68,7 @@ export function LabelSelect<T extends string>({
   disabled?: boolean;
   onChange: (value: T) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Select
       disabled={disabled}
@@ -76,12 +78,12 @@ export function LabelSelect<T extends string>({
       value={value}
     >
       <SelectTrigger aria-label={label} id={id}>
-        <SelectValue>{labels[value]}</SelectValue>
+        <SelectValue>{t(labels[value])}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(labels) as T[]).map((key) => (
           <SelectItem key={key} value={key}>
-            {labels[key]}
+            {t(labels[key])}
           </SelectItem>
         ))}
       </SelectContent>
@@ -117,6 +119,7 @@ export function RuleRow({
   onRevoke: () => void;
   onChange: (behaviour: RuleBehaviour) => void;
 }) {
+  const { t } = useI18n();
   const labels = team ? TEAM_BEHAVIOUR_LABELS : BEHAVIOUR_LABELS;
   // The tool is the title; the rest of what the rule matches is the line beneath, never clamped,
   // since two rules for one tool differ only there.
@@ -136,21 +139,21 @@ export function RuleRow({
         <ItemTitle>{rule.toolRef}</ItemTitle>
         {match ? (
           <ItemDescription className="line-clamp-none break-all">
-            {match}
+            {t(match)}
           </ItemDescription>
         ) : null}
-        {locked ? <ItemDescription>Locked</ItemDescription> : null}
+        {locked ? <ItemDescription>{t("Locked")}</ItemDescription> : null}
       </ItemContent>
       <ItemActions>
         {locked ? (
           <span className="text-muted-foreground text-sm">
-            {labels[rule.behaviour]}
+            {t(labels[rule.behaviour])}
           </span>
         ) : (
           <>
             <LabelSelect
               disabled={disabled}
-              label={`Behaviour for ${rule.toolRef}`}
+              label={t("Behaviour for {tool}", { tool: rule.toolRef })}
               labels={labels}
               onChange={onChange}
               value={rule.behaviour}
@@ -161,7 +164,7 @@ export function RuleRow({
               size="sm"
               variant="outline"
             >
-              Remove
+              {t("Remove")}
             </Button>
           </>
         )}
@@ -196,6 +199,7 @@ export function RuleForm({
   /** The Bot every rule from this form is for, already known from the page it is on. */
   forBot?: string;
 }) {
+  const { t } = useI18n();
   const blank = forBot ? { ...EMPTY_RULE, botId: forBot } : EMPTY_RULE;
   const [rule, setRule] = useState<ApprovalRuleInput>(blank);
   const [open, setOpen] = useState(false);
@@ -234,7 +238,7 @@ export function RuleForm({
         <ItemContent>
           <ItemTitle>{label}</ItemTitle>
           <ItemDescription>
-            A tool or app, and what a Bot does before using it.
+            {t("A tool or app, and what a Bot does before using it.")}
           </ItemDescription>
         </ItemContent>
         <ItemActions>
@@ -246,8 +250,9 @@ export function RuleForm({
           <DialogHeader>
             <DialogTitle>{label}</DialogTitle>
             <DialogDescription>
-              Use * to match anything. mcp/gmail/* means every Gmail tool. A
-              target of *.example.com means every page on that site.
+              {t(
+                "Use * to match anything. mcp/gmail/* means every Gmail tool. A target of *.example.com means every page on that site.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
@@ -264,14 +269,20 @@ export function RuleForm({
               <FieldGroup>
                 {field(
                   "toolRef",
-                  "Tool or app",
+                  t("Tool or app"),
                   "mcp/gmail/*, computer_click, host/*",
                 )}
-                {field("effect", "Kind of action", "* , write, read, delegate")}
-                {field("scope", "Target", "*, a site, a folder, a Bot name")}
-                {botField ? field("botId", "Bot", "* for every Bot") : null}
+                {field(
+                  "effect",
+                  t("Kind of action"),
+                  "* , write, read, delegate",
+                )}
+                {field("scope", t("Target"), "*, a site, a folder, a Bot name")}
+                {botField ? field("botId", t("Bot"), "* for every Bot") : null}
                 <Field>
-                  <FieldLabel htmlFor={`${id}-behaviour`}>Behaviour</FieldLabel>
+                  <FieldLabel htmlFor={`${id}-behaviour`}>
+                    {t("Behaviour")}
+                  </FieldLabel>
                   <LabelSelect
                     id={`${id}-behaviour`}
                     labels={BEHAVIOUR_LABELS}
@@ -291,7 +302,7 @@ export function RuleForm({
           </DialogBody>
           <DialogFooter className="mt-4">
             <Button onClick={close} size="sm" variant="outline">
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={save.isPending || !rule.toolRef.trim()}
@@ -299,7 +310,7 @@ export function RuleForm({
               size="sm"
               type="submit"
             >
-              Save rule
+              {t("Save rule")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/lib/i18n";
 import { type SkillFormValues, skillFormSchema } from "@/lib/skills/form";
 
 /**
@@ -45,6 +46,7 @@ export function SkillFields({
    */
   slugLocked?: boolean;
 }) {
+  const { t } = useI18n();
   const form = useForm({
     defaultValues,
     validators: { onSubmit: skillFormSchema },
@@ -68,7 +70,7 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Command</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("Command")}</FieldLabel>
                 <Input
                   aria-invalid={isInvalid}
                   disabled={slugLocked}
@@ -91,10 +93,12 @@ export function SkillFields({
                 ) : (
                   <p className="text-muted-foreground text-xs">
                     {slugLocked ? (
-                      "You can't change a command. To rename this skill, write a new one and delete this one."
+                      t(
+                        "You can't change a command. To rename this skill, write a new one and delete this one.",
+                      )
                     ) : (
                       <>
-                        What you type after a slash.{" "}
+                        {t("What you type after a slash.")}{" "}
                         <code>
                           /{"{"}command{"}"}
                         </code>
@@ -113,14 +117,14 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Title</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("Title")}</FieldLabel>
                 <Input
                   aria-invalid={isInvalid}
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="My standup skill"
+                  placeholder={t("My standup skill")}
                   value={field.state.value}
                 />
                 {isInvalid ? (
@@ -137,22 +141,24 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>One-liner</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("One-liner")}</FieldLabel>
                 <Input
                   aria-invalid={isInvalid}
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Turns yesterday's work into a standup update"
+                  placeholder={t(
+                    "Turns yesterday's work into a standup update",
+                  )}
                   value={field.state.value}
                 />
                 {isInvalid ? (
                   <FieldError errors={field.state.meta.errors} />
                 ) : (
                   <p className="text-muted-foreground text-xs">
-                    Shown beside the command in this list and in the{" "}
-                    <code>/</code> menu. Optional.
+                    {t("Shown beside the command in this list and in the")}{" "}
+                    <code>/</code> {t("menu. Optional.")}
                   </p>
                 )}
               </Field>
@@ -166,7 +172,9 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
+                <FieldLabel htmlFor={field.name}>
+                  {t("Instructions")}
+                </FieldLabel>
                 <Textarea
                   aria-invalid={isInvalid}
                   className="min-h-40"
@@ -174,15 +182,18 @@ export function SkillFields({
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Summarise what I did yesterday in this conversation, then list what is left."
+                  placeholder={t(
+                    "Summarise what I did yesterday in this conversation, then list what is left.",
+                  )}
                   value={field.state.value}
                 />
                 {isInvalid ? (
                   <FieldError errors={field.state.meta.errors} />
                 ) : (
                   <p className="text-muted-foreground text-xs">
-                    What the Bot is told when you use the command. Write it as
-                    instructions to the Bot.
+                    {t(
+                      "What the Bot is told when you use the command. Write it as instructions to the Bot.",
+                    )}
                   </p>
                 )}
               </Field>
@@ -221,13 +232,13 @@ export function SkillFields({
         >
           {([canSubmit, isSubmitting]) => (
             <Button disabled={!canSubmit || isSubmitting} type="submit">
-              {isSubmitting ? "Saving…" : submitLabel}
+              {isSubmitting ? t("Saving…") : submitLabel}
             </Button>
           )}
         </form.Subscribe>
         {onCancel ? (
           <Button onClick={onCancel} type="button" variant="outline">
-            Cancel
+            {t("Cancel")}
           </Button>
         ) : null}
       </div>

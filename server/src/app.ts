@@ -52,7 +52,10 @@ import type { ChannelEventHub } from "./channels/events";
 import { createGroupRoutes, type GroupConversations } from "./channels/group";
 import { type ChannelStore, createChannelRoutes } from "./channels/routes";
 import type { ThreadIdentity } from "./channels/thread-identity";
-import { createThreadRoutes } from "./channels/thread-routes";
+import {
+  createThreadRoutes,
+  type ThreadReader,
+} from "./channels/thread-routes";
 import { createThreadReader } from "./channels/thread-status";
 import { createComponentRoutes } from "./components/routes";
 import type { SandboxedStore } from "./components/sandboxed";
@@ -78,6 +81,11 @@ import type { DemonstrationRecorder } from "./demonstrations/recording";
 import { createDemonstrationRoutes } from "./demonstrations/routes";
 import type { DemonstrationStore } from "./demonstrations/store";
 import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
+import {
+  isModelProvider,
+  type ModelAdminService,
+  ModelSettingsRefused,
+} from "./model-settings";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
 import type { HostAccessBroker } from "./host-access/broker";
@@ -149,8 +157,8 @@ import {
 /**
  * How much of a multipart body is boundary, headers and other fields rather than file.
  *
- * Generous on purpose. Measured against what the composer actually sends — one `file` part and one
- * `uploadGroup` field — the framing is 360 bytes for a short filename and 614 for a 255-character
+ * Generous on purpose. Measured against what the composer actually sends -one `file` part and one
+ * `uploadGroup` field -the framing is 360 bytes for a short filename and 614 for a 255-character
  * one; a filename full of non-ASCII percent-encodes to a few times that and is still nowhere near
  * this. 64 KiB is therefore an allowance no honest request can exhaust, and it raises the amount of
  * memory a hostile request can pin by 0.8%, which was never the number that mattered.
@@ -160,20 +168,18 @@ const MULTIPART_FRAMING_ALLOWANCE = 64 * 1024;
 /**
  * The ceiling on the whole POST body of a channel attachment upload.
  *
- * THIS IS NOT `MAX_IMAGE_BYTES`, AND THE DIFFERENCE IS THE POINT. Every other gate on this path —
- * the composer's pre-check, `attachmentsConfigFor`'s `maxSize`, the handler's own 413 — measures
+ * THIS IS NOT `MAX_IMAGE_BYTES`, AND THE DIFFERENCE IS THE POINT. Every other gate on this path - * the composer's pre-check, `attachmentsConfigFor`'s `maxSize`, the handler's own 413 -measures
  * THE FILE. This one measures THE ENVELOPE: `bodyLimit` runs before anything has parsed the
  * multipart body, so all it can count is bytes on the wire, file and framing together.
  *
  * Set to `MAX_IMAGE_BYTES` exactly, those two units were silently treated as one, and the ~360
  * bytes of boundary and headers wrapped around a file at the documented ceiling were enough to push
- * the body over it: an 8,388,608-byte image — the exact number the composer publishes as the limit —
- * was refused 413, while 8,388,308 bytes went through. A limit nobody can reach is a limit that is
+ * the body over it: an 8,388,608-byte image -the exact number the composer publishes as the limit - * was refused 413, while 8,388,308 bytes went through. A limit nobody can reach is a limit that is
  * wrong, so the envelope's ceiling is the file's ceiling plus room for the envelope.
  *
  * The slack costs nothing it was protecting against. A body between the two numbers is still read
  * into memory, and then still refused by the handler once `file.size` is a thing anybody can look
- * at — which is where a text upload, whose real limit is `MAX_FILE_BYTES`, is refused too. What the
+ * at -which is where a text upload, whose real limit is `MAX_FILE_BYTES`, is refused too. What the
  * door exists to stop is the 2GB body, and it still does.
  */
 export const UPLOAD_BODY_LIMIT_BYTES =
@@ -403,11 +409,11 @@ export function createApp(
      * Shared apps: who may use an app's one team account, and the switch that makes an app Shared.
      *
      * A field here rather than another positional parameter. Everything from `auditReader` on is
-     * optional and positional, so a 37th argument is one an caller can misplace silently — the trap
+     * optional and positional, so a 37th argument is one an caller can misplace silently -the trap
      * `composio` and `connect` are both commented for. One object carries both halves because every
      * surface that needs one needs the other: the plugin routes switch modes and record approvals,
      * the approvals inbox answers requests, and publishing or assigning a Bot re-checks what it was
-     * approved for. Absent, none of those surfaces exists — and nothing can turn an app Shared.
+     * approved for. Absent, none of those surfaces exists -and nothing can turn an app Shared.
      */
     shared?: { modes: AccountModeSwitch; use: SharedUseStore };
     /** The private sign-in form and the Passwords vault. See passwords/service.ts. */
@@ -448,6 +454,17 @@ export function createApp(
   identity?: IdentityStore,
   /** The GitHub sign-in callback, built by the caller; mounted behind requireUser ahead of /api/identity. */
   identityGithubCallback?: Hono<{ Variables: AppVariables }>,
+  /**
+   * Local mode: answers the thread-known check from the local thread store. Absent builds the
+   * Intelligence reader in Intelligence mode, and leaves the route answering 404 otherwise, which
+   * the browser reads as "no news" and keeps the thread it remembered.
+   */
+  localThreadReader?: ThreadReader,
+  /**
+   * The admin Model page. Absent unmounts nothing but answers 503: a deployment that never built
+   * the service has no model to change from a browser.
+   */
+  modelService?: ModelAdminService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -691,7 +708,7 @@ export function createApp(
       typeof body?.step === "number" &&
       Number.isInteger(body.step) &&
       body.step >= 0 &&
-      // The column's range — the only bound the server knows, since the wizard's length is the
+      // The column's range -the only bound the server knows, since the wizard's length is the
       // app's fact rather than the deployment's.
       body.step <= 2_147_483_647
     ) {
@@ -872,8 +889,8 @@ export function createApp(
         );
       }
       /*
-       * The export answers the same filtered query as the list — `eventType`,
-       * `actorUserId`, `initiatorKind`, `targetType`, `targetId`, `from`, `to` — so the
+       * The export answers the same filtered query as the list -`eventType`,
+       * `actorUserId`, `initiatorKind`, `targetType`, `targetId`, `from`, `to` -so the
        * downloaded file and the table agree. Paging (`cursor`, `limit`) belongs to the
        * JSON list and is ignored here; the export walks every matching page up to the
        * cap in `readAuditExportRows` and names the file after the day it was pulled.
@@ -1278,6 +1295,79 @@ export function createApp(
     }
     return context.json({ package: await packageStatusReader.active() });
   });
+
+  /*
+   * The admin Model page. The deployment's model is deployment-level configuration -provider,
+   * endpoint and model name -so it lives here rather than on a per-person settings screen. The
+   * key is write-only in both directions: `PUT` accepts one, nothing ever returns one.
+   *
+   * Absent service means this build has no model page (a test, say), and the routes answer 503
+   * rather than being silently unmounted.
+   */
+  app.get("/api/admin/model", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    if (!modelService) {
+      return context.json({ error: "Model settings are not configured." }, 503);
+    }
+    return context.json({ model: await modelService.status() });
+  });
+  app.put("/api/admin/model", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    if (!modelService) {
+      return context.json({ error: "Model settings are not configured." }, 503);
+    }
+    const body = await context.req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return context.json({ error: "Model input is invalid." }, 400);
+    }
+    const input = body as Record<string, unknown>;
+    if (!isModelProvider(input.provider) || typeof input.model !== "string") {
+      return context.json({ error: "Model input is invalid." }, 400);
+    }
+    try {
+      return context.json({
+        model: await modelService.save({
+          provider: input.provider,
+          model: input.model,
+          ...(typeof input.baseUrl === "string" || input.baseUrl === null
+            ? { baseUrl: input.baseUrl }
+            : {}),
+          ...(input.api === "chat" || input.api === "responses"
+            ? { api: input.api }
+            : {}),
+          ...(typeof input.apiKey === "string" && input.apiKey.trim()
+            ? { apiKey: input.apiKey.trim() }
+            : {}),
+          actorUserId: context.var.actor.id,
+        }),
+      });
+    } catch (error) {
+      if (error instanceof ModelSettingsRefused) {
+        return context.json({ error: error.message }, 400);
+      }
+      throw error;
+    }
+  });
+  app.delete("/api/admin/model", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    if (!modelService) {
+      return context.json({ error: "Model settings are not configured." }, 503);
+    }
+    return context.json({
+      model: await modelService.clear(context.var.actor.id),
+    });
+  });
+  app.post("/api/admin/model/test", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    if (!modelService) {
+      return context.json({ error: "Model settings are not configured." }, 503);
+    }
+    return context.json({ result: await modelService.test() });
+  });
   /*
    * Where the worker hands a routine run back. Not under /api and not behind requireUser: the
    * worker is not a person with a session, it is another process on this deployment's own network,
@@ -1348,7 +1438,7 @@ export function createApp(
       /*
        * Fire and answer: the consumer needs "accepted", not the outcome. The run row in
        * `routine_runs` carries the outcome, and the consumer finishes the work item on this 202.
-       * Queue retries exist for DISPATCH failures only — a failed turn is final for this firing, and
+       * Queue retries exist for DISPATCH failures only -a failed turn is final for this firing, and
        * the fatigue rule owns it. `run()` never throws by contract; this swallow only guards against
        * that contract being wrong without turning a bug there into an unhandled rejection here.
        */
@@ -1452,8 +1542,8 @@ export function createApp(
         // Whether "built-in" is a kind of coworker this deployment can actually make: the create
         // path falls back to the managed Bot's endpoint, so without one it can only refuse.
         config.managedAgent?.endpoint !== undefined,
-        // The managed Bot's address, so a coworker created without an endpoint — which creation
-        // stores as running at this address — can be told apart from one a person hosts.
+        // The managed Bot's address, so a coworker created without an endpoint -which creation
+        // stores as running at this address -can be told apart from one a person hosts.
         config.managedAgent?.endpoint?.toString(),
         coworker?.shared?.use,
         // So testing one of our own addresses knocks with the token the run will use, rather than
@@ -1520,8 +1610,8 @@ export function createApp(
      * size, so an unbounded body is read into memory in full before anything gets the chance to
      * refuse it. A person (or an attacker) posting a 2GB body would have it buffered in RAM before
      * the 413 the handler already knows how to return. `MAX_IMAGE_BYTES` is the largest thing this
-     * route could ever legitimately accept — a text upload is refused smaller, inside the handler,
-     * once the sniffed type is known — so refusing anything larger at the door costs nothing a real
+     * route could ever legitimately accept -a text upload is refused smaller, inside the handler,
+     * once the sniffed type is known -so refusing anything larger at the door costs nothing a real
      * upload was ever going to use.
      *
      * The ceiling is `UPLOAD_BODY_LIMIT_BYTES` and not `MAX_IMAGE_BYTES` itself because THIS GATE
@@ -1538,7 +1628,7 @@ export function createApp(
          * hono's default `onError` answers with the plain string "Payload Too Large". The composer
          * (app/src/components/channels/composer/attachments.ts) reads `{ error }` off every failed
          * upload and falls back to a generic `Could not upload "<name>"` when the body will not
-         * parse as JSON — so the default body cost the person the one sentence that would have told
+         * parse as JSON -so the default body cost the person the one sentence that would have told
          * them what went wrong, on the single refusal where the reason is both knowable and
          * actionable. This is the same `{ error }` shape and the same number the handler's own 413
          * names, so the two paths are indistinguishable from the outside.
@@ -1547,7 +1637,7 @@ export function createApp(
          * has parsed the multipart body at this point, which is the entire reason this middleware
          * runs ahead of the handler. The handler's sentences can say `'notes.txt' is larger than the
          * 1MB limit for files` because by then it has sniffed the bytes. This one cannot, and must
-         * not guess — a 9MB text file refused here as being over "the 8MB limit for images" would
+         * not guess -a 9MB text file refused here as being over "the 8MB limit for images" would
          * send somebody off to shrink it to 7MB, whereupon the handler would refuse it a second time
          * with a different number. So the sentence names the only thing that is true of every body
          * this gate rejects: none of them can be under the largest ceiling the route has.
@@ -1723,7 +1813,7 @@ export function createApp(
            * Whether the person a consent was started for still has access, asked when the callback
            * lands rather than when the flow began.
            *
-           * The callback carries no session — identity comes from the state — so this is where the
+           * The callback carries no session -identity comes from the state -so this is where the
            * question gets asked at all. `find` answers both halves of it: no row means a user id that
            * names nobody, and `revoked` means an administrator removed them while they were away at
            * the vendor. Either way there is no live person for a fresh refresh token to belong to.
@@ -1796,7 +1886,7 @@ export function createApp(
          *
          * The three outcomes inside `callTool` are all written after the caller has proved which Bot
          * it is. A caller that fails to prove it never reaches them, so this refusal used to leave
-         * nothing at all — and it is the refusal behind the product's most confusing failure: a Bot
+         * nothing at all -and it is the refusal behind the product's most confusing failure: a Bot
          * whose token no longer matches the deployment's has every call rejected here, returns
          * nothing to its own model, and the model tells the person there were no results. A false
          * negative delivered as an answer, with the trail agreeing nothing had happened.
@@ -1874,11 +1964,11 @@ export function createApp(
          *
          * WHAT THIS SURFACE IS. The answer goes into the calling Bot's model as the tool result, so
          * it is the widest audience an error message in this deployment reaches: a model repeats
-         * what it is handed — to the person asking, into whatever it writes next, and to the next
+         * what it is handed -to the person asking, into whatever it writes next, and to the next
          * tool it calls. `plugins/tools.ts` wraps the identical `callTool` for a Bot running in
          * this process and has refused that shelf for exactly this reason since the
          * `ServerRowAmbiguousError` finding; the two doors to one store disagreeing meant a query
-         * failure came back as `Failed query: … params: linear, usr_…` through one of them and as a
+         * failure came back as `Failed query: -params: linear, usr_…` through one of them and as a
          * fixed sentence through the other. Which door a Bot arrives at is a deployment topology
          * decision and was never a disclosure decision.
          *
@@ -1886,7 +1976,7 @@ export function createApp(
          * and `isDeploymentFault` says so itself: it "settles who may be told, not what". The shelf
          * decides whether this audience may hear a sentence at all; the door decides what any
          * sentence is allowed to contain. Today the two overlap on a query failure and this arm can
-         * only be reached by something neither recognises — which is exactly the state the last two
+         * only be reached by something neither recognises -which is exactly the state the last two
          * findings in this area were found in, one predicate apart from a leak.
          *
          * AND ONLY A REFUSAL CARRIES THE MARKER, which is the in-process door's third question. The
@@ -1925,14 +2015,14 @@ export function createApp(
       createThreadRoutes(
         threadIdentity,
         requireUser,
-        // config.ts refuses to boot without the full Intelligence contract (see copilot.ts's
-        // header comment), so `config.runtime.intelligence` is never missing here. Built from it
-        // rather than assumed, though: this is the one place besides the runtime mount itself that
-        // needs to reach Intelligence, and it should keep working unmodified if that guarantee ever
-        // loosens and a deployment can legitimately have no reader to build.
-        createThreadReader(
-          createIntelligenceClient(config.runtime.intelligence),
-        ),
+        // Intelligence mode asks the platform whether a remembered thread still exists. Local mode
+        // asks the local store; without a reader the route answers 404, which the browser reads as
+        // "nothing to say" rather than "gone".
+        config.runtime.mode === "intelligence"
+          ? createThreadReader(
+              createIntelligenceClient(config.runtime.intelligence),
+            )
+          : localThreadReader,
       ),
     );
   }
@@ -1996,7 +2086,7 @@ function credentialInput(
    * written by the code that owns those flows, and an administrator hand-posting either would be
    * creating a credential attributed to a person who never agreed to it.
    *
-   * So this list is not out of date with the enum — do not widen it to match.
+   * So this list is not out of date with the enum -do not widen it to match.
    */
   if (
     (body.kind !== "model" &&

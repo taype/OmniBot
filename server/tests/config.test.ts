@@ -99,9 +99,9 @@ describe("deployment configuration", () => {
     expect(config.auth).toBeUndefined();
   });
 
-  // The product does not have a mode without Intelligence, so each of these is a refusal to boot
-  // rather than a degraded capability. Named individually because a deployment that sets three of
-  // four is the likeliest real mistake, and the message has to say which one is missing.
+  // A PARTIAL set is still a refusal to boot, because three of four is the likeliest real mistake and
+  // the message has to say which one is missing. An entirely absent set is a different thing now —
+  // see the local-mode test below — and this is where the two are kept apart.
   test.each([
     "INTELLIGENCE_API_URL",
     "INTELLIGENCE_GATEWAY_WS_URL",
@@ -113,7 +113,7 @@ describe("deployment configuration", () => {
     delete environment[name];
 
     expect(() => loadConfig(environment)).toThrow(
-      `CopilotKit Intelligence is required and is not configured. Missing: ${name}`,
+      `CopilotKit Intelligence is partially configured. Missing: ${name}`,
     );
   });
 
@@ -148,15 +148,24 @@ describe("deployment configuration", () => {
     );
   });
 
-  test("refuses to start when Intelligence is absent entirely, rather than degrading", () => {
-    expect(() =>
-      loadConfig({
-        DATABASE_URL: baseEnvironment.DATABASE_URL,
-        KEY_ENCRYPTION_KEY: baseEnvironment.KEY_ENCRYPTION_KEY,
-        MANAGED_AGENT_AG_UI_URL: baseEnvironment.MANAGED_AGENT_AG_UI_URL,
-        MANAGED_AGENT_TOKEN: baseEnvironment.MANAGED_AGENT_TOKEN,
-      }),
-    ).toThrow("CopilotKit Intelligence is required and is not configured");
+  test("runs fully local when no Intelligence is configured at all", () => {
+    const config = loadConfig({
+      DATABASE_URL: baseEnvironment.DATABASE_URL,
+      KEY_ENCRYPTION_KEY: baseEnvironment.KEY_ENCRYPTION_KEY,
+      OPENBOT_SINGLE_USER: "true",
+      MANAGED_AGENT_AG_UI_URL: baseEnvironment.MANAGED_AGENT_AG_UI_URL,
+      MANAGED_AGENT_TOKEN: baseEnvironment.MANAGED_AGENT_TOKEN,
+    });
+
+    expect(config.runtime.mode).toBe("local");
+    expect(config.runtime.intelligence).toBeUndefined();
+  });
+
+  test("LOCAL_MODE forces the local runtime even when Intelligence is configured", () => {
+    const config = loadConfig({ ...baseEnvironment, LOCAL_MODE: "true" });
+
+    expect(config.runtime.mode).toBe("local");
+    expect(config.runtime.intelligence).toBeUndefined();
   });
 
   test("rejects incomplete OAuth client configuration", () => {

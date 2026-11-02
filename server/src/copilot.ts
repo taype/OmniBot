@@ -34,6 +34,12 @@ import {
   planModelForEnvironment,
 } from "./agents/plan-model";
 import type { AgentActor } from "./agents/profile-types";
+import {
+  chatCompletionsModel,
+  getModelRuntimeConfig,
+  modelApiFromEnvironment,
+  modelFromSettings,
+} from "./agents/model-api";
 import type { AuditInitiator } from "./audit";
 import {
   attachmentIdsIn,
@@ -55,6 +61,12 @@ import {
   type LearningRuntime,
 } from "./learning/runtime";
 import type { LearningSettingsStore } from "./learning/settings";
+import {
+  createLocalThreadLock,
+  readLocalHistory,
+} from "./threads/local-intelligence";
+import type { LocalAgentRunner } from "./threads/local-agent-runner";
+import type { LocalThreadStore } from "./threads/local-thread-store";
 import {
   type LoadPersonalMemory,
   PersonalMemoryMiddleware,
@@ -324,8 +336,7 @@ function isHttpUrl(value: string) {
  *
  * The OpenBot equivalent of a CLAUDE.md, and the third instruction carrier beside the two that
  * already existed. A role is the coworker's and reads the same to everybody who talks to it; a skill
- * is pulled in for one task. This is the person's, and it is true of every task they ever ask for —
- * how they want to be written to, what their company is called, what it is not to be called.
+ * is pulled in for one task. This is the person's, and it is true of every task they ever ask for - * how they want to be written to, what their company is called, what it is not to be called.
  *
  * THE PRECEDENCE SENTENCE IS PART OF THE BLOCK, not decoration. Two standing instructions in one
  * prompt is a conflict waiting to be resolved by whichever the model read last, and the answer is
@@ -335,7 +346,7 @@ function isHttpUrl(value: string) {
  *
  * BUILT-IN COWORKERS ONLY. A remote AG-UI bot runs its own loop at somebody else's endpoint, and
  * everything this deployment sends it is a standing system message rather than a prompt it composes
- * — see `remoteAgentWithStandingRole`. Adding a third message there is a real change with its own
+ * -see `remoteAgentWithStandingRole`. Adding a third message there is a real change with its own
  * questions (whether an endpoint that ignores the role would honour this, and whether one
  * deployment's person may address another's server with their own prose), and it is deliberately not
  * made here.
@@ -353,6 +364,20 @@ export function standingInstructionsGuidance(
     `The person you are working with has standing instructions that apply in every channel and every task, alongside your role: ${trimmed}`,
     "Where the two conflict, the role decides what you do and these decide how you do it.",
   ].join("\n\n");
+}
+
+/**
+ * A value the surrounding mode guarantees, with a failure that names the mode rather than `!`.
+ *
+ * Every `!` this replaces means "present because the other branch cannot be taken". A non-null
+ * assertion would turn a wiring mistake into a TypeError deep inside a run, where the stack names
+ * a helper instead of the missing half; this says which half was expected.
+ */
+export function required<T>(value: T | undefined, what: string): T {
+  if (value === undefined) {
+    throw new Error(`${what} is required for this deployment's runtime mode.`);
+  }
+  return value;
 }
 
 export function builtInAgentConfiguration(
@@ -405,6 +430,29 @@ export function builtInAgentConfiguration(
   }
 
   const standing = standingInstructionsGuidance(standingInstructions);
+  /*
+   * WHICH MODEL THIS RUN ASKS, in order of precedence:
+   *
+   * 1. `planModel` -a desktop signing choice, explicit and personal.
+   * 2. a model saved on the admin Model page -built as an OBJECT so its base URL and protocol are
+   *    ours to choose and the runtime passes it through untouched;
+   * 3. OPENBOT_MODEL_API=chat for the OpenAI provider -the gateway case (see model-api.ts);
+   * 4. the plain `provider/model` string the runtime resolves itself.
+   */
+  const saved = getModelRuntimeConfig();
+  const modelSelection =
+    planModel ??
+    (saved
+      ? modelFromSettings({
+          provider: saved.provider,
+          model: saved.model,
+          apiKey,
+          baseUrl: saved.baseUrl,
+          api: saved.api,
+        })
+      : model.provider === "openai" && modelApiFromEnvironment() === "chat"
+        ? chatCompletionsModel({ model: model.defaultModel, apiKey })
+        : `${model.provider}/${model.defaultModel}`);
   const allTools = [
     ...tools,
     ...(learnedSkills?.tools.map((tool) => ({
@@ -416,7 +464,7 @@ export function builtInAgentConfiguration(
   ];
 
   return {
-    model: planModel ?? `${model.provider}/${model.defaultModel}`,
+    model: modelSelection,
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
      * holds, then the computer.
@@ -426,7 +474,7 @@ export function builtInAgentConfiguration(
      * even when it held a tool for the exact system being asked about.
      *
      * The person's instructions go straight after the role and before all of it, because they are
-     * the other half of the same question — who you are and who you are working for — and because
+     * the other half of the same question -who you are and who you are working for -and because
      * their precedence sentence only means anything next to the role it defers to.
      */
     prompt: [
@@ -632,7 +680,7 @@ export type LoadInstructions = () => Promise<string | null>;
  * is decided by the conversation it is running in, not only by who is asking: an implementation
  * resolves the thread to its channel and refuses a file belonging to another one. Required rather
  * than optional, and second rather than curried in beside the actor, because those are the two
- * shapes that cannot be forgotten — `resolveAttachmentParts` accepts a `(id) => …`, so a
+ * shapes that cannot be forgotten -`resolveAttachmentParts` accepts a `(id) => …`, so a
  * `LoadAttachment` is deliberately NOT assignable to it, and the binding that adapts one to the
  * other is the line where the thread id has to be named. A caller that omits it does not compile.
  * Mirrors {@link SignRun}, which takes the thread for the same class of reason.
@@ -648,7 +696,7 @@ export type LoadAttachment = (
  * A closure bound to one person, like {@link LoadAttachment}, and for a stricter reason: this one
  * WRITES. `attachedAt` is what the sweeper, the upload cap and the withdrawal route all read as
  * "this file rode in a message somebody sent", so only the person whose send it was may record it,
- * and only for rows they uploaded themselves — see `markAttachmentsSent` in
+ * and only for rows they uploaded themselves -see `markAttachmentsSent` in
  * channels/attachments.ts, which puts `uploadedBy` in the WHERE for exactly that.
  *
  * Called with the ids on the message being asked about and nothing else. History is replayed on
@@ -659,7 +707,7 @@ export type LoadAttachment = (
  * is real; the conclusion was not. {@link inlineAttachments} calls this BEFORE it returns the
  * history, and the history is what the run is given afterwards, so nothing has reached a model when
  * this resolves. A rejection here therefore costs a turn that never started, while a silent one
- * costs the file itself — `attachedAt` is what stops the culler reclaiming it, so a send recorded
+ * costs the file itself -`attachedAt` is what stops the culler reclaiming it, so a send recorded
  * nowhere is a message that displays a file the sweeper deletes a day later. The long argument, and
  * the four things that still do NOT reject, are in `markAttachmentsSent` in channels/attachments.ts.
  *
@@ -680,7 +728,7 @@ export type MarkAttachmentsSent = (
   ids: readonly string[],
   /**
    * The conversation the send happened in, required for the reason {@link LoadAttachment} takes
-   * one — and here it is the stronger of the two cases, because this WRITES. A stamp recorded
+   * one -and here it is the stronger of the two cases, because this WRITES. A stamp recorded
    * against the wrong conversation freezes a row in a channel that never saw the file: it can no
    * longer be withdrawn and the culler will no longer reclaim it.
    */
@@ -706,17 +754,17 @@ export type MarkAttachmentsSent = (
  * is what makes failing there recoverable: the person is still there, and can re-attach and re-send.
  *
  * OLDER MESSAGES DEGRADE INSTEAD. This maps over the WHOLE history, and history is replayed on every
- * turn, so one vanished row failing here would fail this channel's every future turn for ever — the
+ * turn, so one vanished row failing here would fail this channel's every future turn for ever -the
  * same geometry as the dangling tool call in `toolkit/history-sanitize.ts`, which opens by recording
  * that exact failure found in production twice: a permanent failure grown out of transient damage,
  * and nothing the person did wrong. It is reachable the same way, too: a send whose run is stopped
  * before the load never stamps `attachedAt`, and the sweeper deletes the row a day later. So an
- * older part whose row is gone becomes text saying so, which keeps the property that matters — the
- * model is never left to answer as though a file it cannot see were in front of it — without the
+ * older part whose row is gone becomes text saying so, which keeps the property that matters -the
+ * model is never left to answer as though a file it cannot see were in front of it -without the
  * permanence.
  *
  * AND IT WALKS BACKWARDS, WHICH IS WHAT MAKES THE BUDGET FAIR. `MAX_INLINED_BYTES_PER_RUN` bounds
- * what one turn may inline in total — nothing did, before, and a channel that had seen a few large
+ * what one turn may inline in total -nothing did, before, and a channel that had seen a few large
  * images made every later turn read and base64 all of them again. A budget is only defensible if
  * the person's own question is never what it cuts, so the walk starts at the newest message: the
  * one being asked about is charged first, and is never cut whatever it costs. What runs out is the
@@ -726,8 +774,8 @@ export type MarkAttachmentsSent = (
  * NEVER CUT IS NOT THE SAME AS NEVER BOUNDED, and reading the first as the second is what left the
  * asked message with no ceiling at all: `resolvePart` stopped spending only under
  * `onMissing: "note"`, so a message a browser had just written could name two hundred
- * previously-sent files and inline every one of them. It is still never cut — a person is never
- * told their own question's attachment was quietly left out — but a message past
+ * previously-sent files and inline every one of them. It is still never cut -a person is never
+ * told their own question's attachment was quietly left out -but a message past
  * `MAX_INLINED_BYTES_PER_RUN` now fails this turn with a sentence naming the file and the limit.
  * Refusing is an answer somebody can act on, since the message is still in front of them; silently
  * serving half of it is not.
@@ -744,7 +792,7 @@ async function inlineAttachments(
    * The conversation this run is in, passed to every load and to the stamp.
    *
    * Taken as a parameter rather than read off anything reachable from here because this function
-   * is handed a history, not a run — and it is the ONLY place that both knows which message is
+   * is handed a history, not a run -and it is the ONLY place that both knows which message is
    * being asked about and is called from every path that can send one. Both call sites below have
    * `input.threadId` in hand; neither can supply it by accident, since {@link LoadAttachment} does
    * not typecheck without it.
@@ -794,13 +842,13 @@ async function inlineAttachments(
      * AFTER THE WHOLE HISTORY RESOLVES, NOT AFTER THIS MESSAGE DOES, which is why the ids are only
      * COLLECTED here and the write happens past the end of the loop. The strict `"fail"` above is
      * what refuses a turn that names a file the asker cannot see, and a send is not recorded for a
-     * turn that never ran — but this loop walks BACKWARDS, so the asked message is the first thing
+     * turn that never ran -but this loop walks BACKWARDS, so the asked message is the first thing
      * it resolves and every older message is still ahead of it. Stamping here meant stamping before
      * any of them had been looked at, and a history load that rejects (a pool error, a timeout;
      * `"note"` softens a MISSING row, not a failing read) then failed the turn with `attachedAt`
      * already written for it. The stamp's entire meaning is "this file reached a message somebody
-     * actually sent", and three readers act on it — the sweeper's delete, the upload cap, the
-     * withdrawal route — so a stamp for a turn that never ran is not a cosmetic inaccuracy.
+     * actually sent", and three readers act on it -the sweeper's delete, the upload cap, the
+     * withdrawal route -so a stamp for a turn that never ran is not a cosmetic inaccuracy.
      *
      * Past the end of the loop is as late as this function can put it, and no later: whether the
      * model ever answers is decided by things well downstream of here, and a stamp that waited for
@@ -815,11 +863,11 @@ async function inlineAttachments(
      * longer existed. Nobody was told, on either side.
      *
      * THE POINT IS *WHERE* THIS LINE SITS, and it is the reason refusing is affordable at all.
-     * Everything above has resolved into `inlined`, and `inlined` is RETURNED — the run is handed to
+     * Everything above has resolved into `inlined`, and `inlined` is RETURNED -the run is handed to
      * `super.run` / `next.run` by the caller, after this function comes back. So a rejection on this
      * line happens with no model called, no token spent, and the person's message still in front of
      * them, which is the same position `resolvePart`'s `"fail"` refusal leaves them in a few lines
-     * above. The turn is not yet spent, so the trade is not "an answer for a file" — it is a retry
+     * above. The turn is not yet spent, so the trade is not "an answer for a file" -it is a retry
      * for a file, and it is only available here.
      *
      * The implementation logs the actor and the ids; what it throws is a sentence naming the files
@@ -1115,8 +1163,8 @@ type MastraClientForBridge = Parameters<
  * How this deployment dials a remote Bot's endpoint.
  *
  * Both kinds come back as an `AbstractAgent`, which is the whole point of putting them here. Every
- * control the wrapper below adds — the standing role, the holdings message, the offered tools, the
- * signed run assertion — is written against that interface, so a Mastra Bot is governed by exactly
+ * control the wrapper below adds -the standing role, the holdings message, the offered tools, the
+ * signed run assertion -is written against that interface, so a Mastra Bot is governed by exactly
  * the same code as an AG-UI one and cannot skip a control by being a different kind. A second
  * wrapper per transport is how that stops being true, silently, three months later.
  *
@@ -1170,7 +1218,7 @@ async function remoteTransport(
      * The same class, twice, under two names.
      *
      * This server runs zod 4 and `@ag-ui/mastra` depends on zod 3, so the package manager resolves
-     * two peer variants of `@mastra/client-js` — identical code at identical version 1.43.0, but
+     * two peer variants of `@mastra/client-js` -identical code at identical version 1.43.0, but
      * two nominal types to TypeScript, which tells them apart by a private field. The cast crosses
      * that and nothing else. It is deliberately written against the bridge's own parameter type, so
      * the day the two versions really do diverge this stops compiling instead of lying.
@@ -1254,7 +1302,7 @@ function remoteAgentWithStandingRole(
    * registered with `.use()` is applied by `runAgent`, not by `run`: an outer agent that delegated
    * to `remote.run(input)` would skip this whole function's work, and the endpoint would receive a
    * run with no standing role, no holdings message, no tools and no signed assertion. Every one of
-   * those is silent — the Bot simply answers worse — so the narrowing goes inside the middleware
+   * those is silent -the Bot simply answers worse -so the narrowing goes inside the middleware
    * that is already here.
    *
    * Absent means no narrowing, which is the behaviour every deployment had before this existed.
@@ -1286,7 +1334,7 @@ function remoteAgentWithStandingRole(
    *
    * The remote path needs this more than the built-in one, not less. A framework Bot is handed the
    * tools as an offer and decides for itself what to call, with `COMPUTER_GUIDANCE` as its whole
-   * prompt — a page about the browser that mentions connectors nowhere. That is the Bot that browsed
+   * prompt -a page about the browser that mentions connectors nowhere. That is the Bot that browsed
    * to drive.google.com holding four Drive tools.
    *
    * Built from the tools this run was offered rather than from everything granted, so a narrowed
@@ -1500,12 +1548,12 @@ function remoteAgentWithStandingRole(
 }
 
 const RESERVED_MASTRA_CONTEXT_DESCRIPTIONS = new Set([
-  "OpenBot standing role",
-  "OpenBot granted tools guidance",
-  "OpenBot Bot id",
-  "OpenBot deployment tools",
-  "OpenBot signed run assertion",
-  "OpenBot learned skills",
+  "OmniBot standing role",
+  "OmniBot granted tools guidance",
+  "OmniBot Bot id",
+  "OmniBot deployment tools",
+  "OmniBot signed run assertion",
+  "OmniBot learned skills",
 ]);
 
 function callerMastraContext(context: AgentContext[]): AgentContext[] {
@@ -1529,29 +1577,29 @@ function mastraOpenBotContext({
 }): AgentContext[] {
   return [
     {
-      description: "OpenBot standing role",
+      description: "OmniBot standing role",
       value: standingMessage.content,
     },
     ...(holdingsMessage
       ? [
           {
-            description: "OpenBot granted tools guidance",
+            description: "OmniBot granted tools guidance",
             value: holdingsMessage.content,
           },
         ]
       : []),
     {
-      description: "OpenBot Bot id",
+      description: "OmniBot Bot id",
       value: botId,
     },
     {
-      description: "OpenBot deployment tools",
+      description: "OmniBot deployment tools",
       value: JSON.stringify(deploymentTools),
     },
     ...(runAssertion
       ? [
           {
-            description: "OpenBot signed run assertion",
+            description: "OmniBot signed run assertion",
             value: runAssertion,
           },
         ]
@@ -1701,9 +1749,20 @@ export function mountCopilotRuntime(
     basePath?: string;
     onRunBusy?: (input: { threadId: string; busy: boolean }) => void;
     learningSettings?: LearningSettingsStore;
+    /** Local mode only: the thread store and the in-process runner, both built by the server. */
+    local?: { store: LocalThreadStore; runner: LocalAgentRunner };
   } = {},
 ) {
-  const { intelligence } = config.runtime;
+  const intelligence =
+    config.runtime.mode === "intelligence"
+      ? config.runtime.intelligence
+      : undefined;
+  const local = config.runtime.mode === "local" ? options.local : undefined;
+  if (config.runtime.mode === "local" && !local) {
+    throw new Error(
+      "A local runtime needs `local: { store, runner }`; the thread store and the runner are built by the server.",
+    );
+  }
   const { basePath = "/api/copilotkit", onRunBusy, learningSettings } = options;
 
   /**
@@ -1742,37 +1801,42 @@ export function mountCopilotRuntime(
   /*
    * One client, used by the runtime and by anything reading a thread beside it, so a hop reads the
    * history a person's run would read rather than a second view of it that could disagree.
+   *
+   * Absent in local mode: there is no cloud to ask, and every reader below is pointed at the local
+   * store instead.
    */
-  const intelligenceClient: CopilotKitIntelligence =
-    observeIntelligenceAuthentication(
-      new IntelligenceKnowingANewThread({
-        apiUrl: intelligence.apiUrl,
-        wsUrl: intelligence.gatewayWsUrl,
-        apiKey: intelligence.apiKey,
-        getLearningContainerId: async ({
-          agentId,
-          input,
-          user,
-        }): Promise<string | undefined> => {
-          if (!user)
-            throw new Error(
-              "Learning Thread assignment requires a verified user.",
-            );
-          return learning?.containerForThread({
+  const intelligenceClient: CopilotKitIntelligence | undefined = intelligence
+    ? observeIntelligenceAuthentication(
+        new IntelligenceKnowingANewThread({
+          apiUrl: intelligence.apiUrl,
+          wsUrl: intelligence.gatewayWsUrl,
+          apiKey: intelligence.apiKey,
+          getLearningContainerId: async ({
             agentId,
-            threadId: input.threadId,
-            userId: user.id,
-          });
-        },
-      }),
-    );
-
-  const learning: LearningRuntime | undefined = learningSettings
-    ? createLearningRuntime({
-        store: learningSettings,
-        client: intelligenceClient,
-      })
+            input,
+            user,
+          }): Promise<string | undefined> => {
+            if (!user)
+              throw new Error(
+                "Learning Thread assignment requires a verified user.",
+              );
+            return learning?.containerForThread({
+              agentId,
+              threadId: input.threadId,
+              userId: user.id,
+            });
+          },
+        }),
+      )
     : undefined;
+
+  const learning: LearningRuntime | undefined =
+    learningSettings && intelligenceClient
+      ? createLearningRuntime({
+          store: learningSettings,
+          client: intelligenceClient,
+        })
+      : undefined;
 
   const runtime = new CopilotRuntime({
     // `mode` is inferred from the presence of `intelligence`; passing it is a type error.
@@ -1781,22 +1845,30 @@ export function mountCopilotRuntime(
     // returns, so omitting it puts every person in the deployment in the same thread space and one
     // person's conversations become another's.
     identifyUser,
-    // The subclass, not the base: a thread nobody has run yet reads as empty rather than as a 500.
-    // See IntelligenceKnowingANewThread.
-    intelligence: intelligenceClient,
-    licenseToken: intelligence.licenseToken,
+    ...(intelligenceClient
+      ? {
+          // The subclass, not the base: a thread nobody has run yet reads as empty rather than as a
+          // 500. See IntelligenceKnowingANewThread.
+          intelligence: intelligenceClient,
+          licenseToken: intelligence?.licenseToken,
+        }
+      : {
+          // Local mode: runs execute in this process and stream back over SSE, with the transcript
+          // written to PostgreSQL by the runner when each run ends.
+          runner: required(local, "The local thread engine").runner,
+        }),
     // Carried on the events the runtime already sends, so OpenBot's traffic is separable from any
     // other deployment's. Adds no events of its own.
     telemetryProperties: {
-      ...(config.accessibility ? { accessibility_title: "OpenBot" } : {}),
+      ...(config.accessibility ? { accessibility_title: "OmniBot" } : {}),
       ...desktopTelemetryProperties(),
     },
     /*
      * What lets a Bot answer with an interface it wrote itself.
      *
      * This one flag is the whole difference between a Bot that draws and a Bot that describes
-     * markup it cannot show. The middleware it turns on does not give the model the tool — the
-     * browser does that — it reads the arguments of the `generateSandboxedUi` call as they stream
+     * markup it cannot show. The middleware it turns on does not give the model the tool -the
+     * browser does that -it reads the arguments of the `generateSandboxedUi` call as they stream
      * and re-emits them as `open-generative-ui` activity events. Those events are the only thing
      * that paints: the tool's own renderer shows the waiting message and then returns nothing. So a
      * deployment with the browser half and not this one has Bots generating whole interfaces that
@@ -1827,24 +1899,39 @@ export function mountCopilotRuntime(
      * refused with `active_lock_mismatch`: a thread's active run is a lock the platform issues, and
      * the token that holds it is not the API key. The runtime asks the client for both, so anything
      * else driving a run has to ask the same client the same way.
+     *
+     * Local mode has no gateway, and nothing should reach for one: the server's own runner is handed
+     * to whoever drives an unattended turn there.
      */
-    runnerConnection: () => ({
-      url: intelligenceClient.ɵgetRunnerWsUrl(),
-      authToken: intelligenceClient.ɵgetRunnerAuthToken(),
-    }),
-    threadLock: createIntelligenceThreadLock({
-      client: intelligenceClient,
-      learning,
-      onRunBusy,
-    }),
+    runnerConnection: () => {
+      if (!intelligenceClient) {
+        throw new Error(
+          "This deployment runs in local mode, so there is no Intelligence runner to connect to.",
+        );
+      }
+      return {
+        url: intelligenceClient.ɵgetRunnerWsUrl(),
+        authToken: intelligenceClient.ɵgetRunnerAuthToken(),
+      };
+    },
+    threadLock:
+      local && intelligenceClient === undefined
+        ? createLocalThreadLock(local.store)
+        : createIntelligenceThreadLock({
+            client: required(intelligenceClient, "The Intelligence client"),
+            learning,
+            onRunBusy,
+          }),
     agentFor,
     /**
-     * A thread's messages, as the platform holds them.
+     * A thread's messages, as the platform holds them -or from the local store in local mode.
      *
      * The same client the runtime uses, so a hop reads the history a person's run would read rather
      * than a second view of it that could disagree.
      */
     history: async (input: { threadId: string; actorId: string }) => {
+      if (local) return readLocalHistory(local.store, input);
+      const client = required(intelligenceClient, "The Intelligence client");
       /*
        * The platform's own message type rather than AG-UI's, inferred rather than named: the two are
        * compatible where it matters and naming the wrong one here would mean converting a history
@@ -1855,7 +1942,7 @@ export function mountCopilotRuntime(
       >;
       const read = await historyOrEmpty<Read>(
         () =>
-          intelligenceClient.getThreadMessages({
+          client.getThreadMessages({
             threadId: input.threadId,
             userId: input.actorId,
           }),

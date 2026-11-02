@@ -7,6 +7,7 @@ import {
 } from "@shadcn/react/message-scroller";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { IconArrowDown } from "@tabler/icons-react";
 
@@ -96,6 +97,7 @@ function MessageScrollerButton({
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Button> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const { t } = useI18n();
   return (
     <MessageScrollerPrimitive.Button
       data-slot="message-scroller-button"
@@ -114,7 +116,7 @@ function MessageScrollerButton({
         <>
           <IconArrowDown />
           <span className="sr-only">
-            {direction === "end" ? "Scroll to end" : "Scroll to start"}
+            {direction === "end" ? t("Scroll to end") : t("Scroll to start")}
           </span>
         </>
       )}

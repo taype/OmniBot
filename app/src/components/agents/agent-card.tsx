@@ -2,6 +2,7 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n";
 import type { AgentProfile } from "@/lib/agents/queries";
 
 export function AgentCard({
@@ -11,6 +12,7 @@ export function AgentCard({
   agent: AgentProfile;
   appearance?: "compact" | "tile";
 }) {
+  const { t } = useI18n();
   if (appearance === "tile") {
     return (
       <div className="flex h-[180px] w-[144px] flex-col overflow-hidden rounded-2xl border border-border bg-card p-3 transition-colors hover:border-ring dark:border-transparent">
@@ -54,11 +56,11 @@ export function AgentCard({
         <Button
           variant="ghost"
           size="xs"
-          aria-label={`View details for ${agent.name}`}
+          aria-label={t("View details for {name}", { name: agent.name })}
           className="-ml-2 text-muted-foreground after:absolute after:inset-0"
           render={<Link params={{ agentId: agent.id }} to="/bots/$agentId" />}
         >
-          Details
+          {t("Details")}
         </Button>
         <IconArrowRight
           aria-hidden="true"

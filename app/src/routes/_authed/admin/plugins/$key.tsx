@@ -43,6 +43,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { grantRoster } from "@/lib/agents/grant-roster";
+import { useI18n } from "@/lib/i18n";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { storeMcpToken } from "@/lib/credentials/mutations";
 import {
@@ -193,10 +194,11 @@ export function connectionKindFor(
  * not left to notice their absence.
  */
 function ConnectionStateUnreadable() {
+  const { t } = useI18n();
   return (
     <Item size="sm">
       <ItemContent>
-        <ItemTitle>Your account</ItemTitle>
+        <ItemTitle>{t("Your account")}</ItemTitle>
         <ItemDescription role="alert">
           Couldn't load whether you've connected an account here. Reload the
           page, or check this deployment's logs if it keeps happening.
@@ -207,6 +209,7 @@ function ConnectionStateUnreadable() {
 }
 
 function RouteComponent() {
+  const { t } = useI18n();
   const { key } = useParams({ from: "/_authed/admin/plugins/$key" });
   const queryClient = useQueryClient();
   const plugins = useQuery(pluginsPageQueryOptions());
@@ -328,7 +331,7 @@ function RouteComponent() {
           : null;
       if (authorizationUrl === null) {
         setError(
-          "OpenBot got no consent link back, so nothing was connected. Try again, or check this connector's setup if it keeps happening.",
+          "OmniBot got no consent link back, so nothing was connected. Try again, or check this connector's setup if it keeps happening.",
         );
         return;
       }
@@ -502,7 +505,7 @@ function RouteComponent() {
    * connected this". The personal screen had the identical gap; see its own note.
    */
   if (plugins.isPending || connections.isPending) {
-    return <PageShell title="Plugin">{null}</PageShell>;
+    return <PageShell title={t("Plugin")}>{null}</PageShell>;
   }
   /*
    * Gated on the plugin list having ARRIVED, the guard the per-Bot grant screen already keeps
@@ -515,11 +518,14 @@ function RouteComponent() {
   if (!plugins.data) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-        title="Plugins"
+        backButton={{
+          label: t("Plugins"),
+          linkProps: { to: "/admin/plugins" },
+        }}
+        title={t("Plugins")}
       >
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Couldn't load plugins. Reload the page.
+          {t("Couldn't load plugins. Reload the page.")}
         </p>
       </PageShell>
     );
@@ -527,9 +533,11 @@ function RouteComponent() {
   if (!(entry || server)) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-        description="There is no plugin with that name, here or in the catalogue."
-        title="Not a plugin"
+        backButton={{ label: t("Plugins"), linkProps: { to: "/admin/plugins" } }}
+        description={t(
+          "There is no plugin with that name, here or in the catalogue.",
+        )}
+        title={t("Not a plugin")}
       >
         <PageEmpty>Nothing to configure.</PageEmpty>
       </PageShell>
@@ -548,7 +556,7 @@ function RouteComponent() {
 
   return (
     <PageShell
-      backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
+      backButton={{ label: t("Plugins"), linkProps: { to: "/admin/plugins" } }}
       description={entry?.summary ?? server?.summary}
       title={title}
     >
@@ -576,7 +584,7 @@ function RouteComponent() {
            */}
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Enable for this deployment</ItemTitle>
+              <ItemTitle>{t("Enable for this deployment")}</ItemTitle>
               <ItemDescription>
                 {server
                   ? "Bots can be given its tools. Turning this off removes it and every Bot's access to its tools."
@@ -608,7 +616,7 @@ function RouteComponent() {
               <Separator />
               <Item size="sm">
                 <ItemContent>
-                  <ItemTitle>Whose account</ItemTitle>
+                  <ItemTitle>{t("Whose account")}</ItemTitle>
                   <ItemDescription>
                     {server.accountMode === "shared"
                       ? "One shared account for everyone."
@@ -657,15 +665,21 @@ function RouteComponent() {
         <PageSection
           description={
             auth === "user-oauth"
-              ? "This vendor answers as whoever is asking. The deployment registers an OAuth client, and each person connects their own account. A Bot only sees what that person can see."
+              ? t(
+                  "This vendor answers as whoever is asking. The deployment registers an OAuth client, and each person connects their own account. A Bot only sees what that person can see.",
+                )
               : auth === "builtin"
-                ? "Built into this deployment. There is no vendor to reach and no credential to keep. A call runs as whoever asked."
+                ? t(
+                    "Built into this deployment. There is no vendor to reach and no credential to keep. A call runs as whoever asked.",
+                  )
                 : auth === "brokered"
                   ? /* The row below says how, at length. This says whose account it is, which is the part that decides what an admin has to do here — which is nothing. */
                     brokeredConnectionDescription(provider)
-                  : "What this deployment sends to the vendor. One credential for everybody."
+                  : t(
+                      "What this deployment sends to the vendor. One credential for everybody.",
+                    )
           }
-          title="Connection"
+          title={t("Connection")}
         >
           {/*
            * Rows that DO something, and nothing else — with two admitted exceptions. The layout
@@ -698,7 +712,7 @@ function RouteComponent() {
                */
               <Item size="sm">
                 <ItemContent>
-                  <ItemTitle>Connection</ItemTitle>
+                  <ItemTitle>{t("Connection")}</ItemTitle>
                   <ItemDescription>
                     Nothing to set up. These tools run inside this deployment,
                     on its own data.
@@ -720,7 +734,7 @@ function RouteComponent() {
                */
               <Item size="sm">
                 <ItemContent>
-                  <ItemTitle>How this is reached</ItemTitle>
+                  <ItemTitle>{t("How this is reached")}</ItemTitle>
                   <ItemDescription>
                     {brokeredReach(provider).description}
                   </ItemDescription>
@@ -741,7 +755,7 @@ function RouteComponent() {
                 size="sm"
               >
                 <ItemContent>
-                  <ItemTitle>Access token</ItemTitle>
+                  <ItemTitle>{t("Access token")}</ItemTitle>
                   <ItemDescription>
                     Sent with every call to this vendor.
                   </ItemDescription>
@@ -763,7 +777,7 @@ function RouteComponent() {
                */
               <Item size="sm">
                 <ItemContent>
-                  <ItemTitle>OAuth client</ItemTitle>
+                  <ItemTitle>{t("OAuth client")}</ItemTitle>
                   <ItemDescription>
                     This deployment registers itself with the vendor on first
                     connect. There is nothing to paste.
@@ -785,7 +799,7 @@ function RouteComponent() {
                 size="sm"
               >
                 <ItemContent>
-                  <ItemTitle>OAuth client</ItemTitle>
+                  <ItemTitle>{t("OAuth client")}</ItemTitle>
                   <ItemDescription>
                     Identifies this deployment to the vendor. On its own, it
                     can't reach anyone's documents.
@@ -877,7 +891,7 @@ function RouteComponent() {
                 ) : (
                   <Item size="sm">
                     <ItemContent>
-                      <ItemTitle>Your account</ItemTitle>
+                      <ItemTitle>{t("Your account")}</ItemTitle>
                       <ItemDescription>
                         {youConnected
                           ? `Connected. A Bot with these tools uses your ${title} as you. Everybody else connects their own.`
@@ -897,7 +911,7 @@ function RouteComponent() {
                           </span>
                         </>
                       ) : (
-                        /* The arrow says this leaves OpenBot for the vendor's consent page. It does. */
+                        /* The arrow says this leaves OmniBot for the vendor's consent page. It does. */
                         <Button
                           disabled={connectSelf.isPending}
                           onClick={() => {
@@ -931,7 +945,7 @@ function RouteComponent() {
                   size="sm"
                 >
                   <ItemContent>
-                    <ItemTitle>Instance host</ItemTitle>
+                    <ItemTitle>{t("Instance host")}</ItemTitle>
                     <ItemDescription>
                       This vendor gives every customer their own hostname. It is
                       checked against the vendor's pattern before it is saved.
@@ -987,7 +1001,7 @@ function RouteComponent() {
                 <p className="text-muted-foreground text-sm">
                   Add this to the client's authorised redirect URIs at the
                   vendor, exactly as written. One wrong character fails there,
-                  with an error that doesn't mention OpenBot.
+                  with an error that doesn't mention OmniBot.
                 </p>
               )}
               {!plugins.data?.redirectUri ? (
@@ -1045,14 +1059,16 @@ function RouteComponent() {
               ) : null}
             </div>
           }
-          description="A Bot only sees the tools it has been given. Each call is checked when it happens, so removing access applies from the next call."
-          title="Tools"
+          description={t(
+            "A Bot only sees the tools it has been given. Each call is checked when it happens, so removing access applies from the next call.",
+          )}
+          title={t("Tools")}
         >
           <SkippedToolsNotice names={server.skippedTools ?? []} />
           {server.tools.length === 0 ? (
             <PageEmpty>
               {server.lastError ??
-                "No tools listed. Refresh tools to check again."}
+                t("No tools listed. Refresh tools to check again.")}
             </PageEmpty>
           ) : (
             <PageRows>
@@ -1180,7 +1196,7 @@ function RouteComponent() {
       {server && server.withdrawn.length > 0 ? (
         <PageSection
           description="This vendor no longer lists these. No Bot sees them, and none can call them. The access is still saved, and comes back if the vendor lists the tool again. To remove it, use the Bot's own page."
-          title="Given but no longer listed"
+          title={t("Given but no longer listed")}
         >
           <PageRows>
             {server.withdrawn.map((held, index) => (

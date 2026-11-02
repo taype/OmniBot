@@ -27,6 +27,7 @@ import {
 } from "@/lib/approvals";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useI18n } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 import { HOST_LABELS, LabelSelect, RuleForm, RuleRow } from "./rules";
 
@@ -36,6 +37,7 @@ import { HOST_LABELS, LabelSelect, RuleForm, RuleRow } from "./rules";
  * administrators change them in Admin → Approvals. Rules for a single Bot are on that Bot's page.
  */
 export function ApprovalSettings() {
+  const { t } = useI18n();
   const inbox = useQuery(approvalInboxOptions());
   const me = useQuery(currentUserQueryOptions()).data;
   const agents = useQuery(agentListQueryOptions());
@@ -80,28 +82,30 @@ export function ApprovalSettings() {
       ) : null}
       {me?.role === "admin" ? (
         <p className="mt-6 text-muted-foreground text-sm">
-          Team settings and shared account requests are in{" "}
+          {t("Team settings and shared account requests are in")}{" "}
           <Link className="underline underline-offset-4" to="/admin/approvals">
-            Admin → Approvals
+            {t("Admin → Approvals")}
           </Link>
           .
         </p>
       ) : null}
-      <PageSection title="Before a Bot acts">
+      <PageSection title={t("Before a Bot acts")}>
         <PageRows>
           <Item size="sm">
             <ItemMedia variant="icon">
               <IconHandStop />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Ask before making changes</ItemTitle>
+              <ItemTitle>{t("Ask before making changes")}</ItemTitle>
               <ItemDescription>
-                Review a Bot's changes to websites, connected apps, and files.
+                {t(
+                  "Review a Bot's changes to websites, connected apps, and files.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Ask before making changes"
+                aria-label={t("Ask before making changes")}
                 checked={inbox.data?.enabled ?? false}
                 disabled={inbox.isLoading || preferences.isPending}
                 onCheckedChange={(enabled) => preferences.mutate({ enabled })}
@@ -116,15 +120,17 @@ export function ApprovalSettings() {
                   <IconEyeCheck />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle id="auto-review-title">Auto-review</ItemTitle>
+                  <ItemTitle id="auto-review-title">
+                    {t("Auto-review")}
+                  </ItemTitle>
                   <ItemDescription
                     className="line-clamp-none"
                     id="auto-review-description"
                   >
-                    {enforced ? "An admin requires this. " : ""}
-                    Before a Bot does something that could affect your accounts
-                    or share information, OpenBot checks it against your request
-                    and your rules. If it can't tell, it asks you.
+                    {enforced ? t("An admin requires this. ") : ""}
+                    {t(
+                      "Before a Bot does something that could affect your accounts or share information, OmniBot checks it against your request and your rules. If it can't tell, it asks you.",
+                    )}
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
@@ -147,21 +153,22 @@ export function ApprovalSettings() {
                   <IconTerminal2 />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Commands on your computer</ItemTitle>
+                  <ItemTitle>{t("Commands on your computer")}</ItemTitle>
                   <ItemDescription className="line-clamp-none">
                     {inbox.data.hostCommands &&
                     inbox.data.hostCommands !==
                       inbox.data.preferences.hostCommands
-                      ? `An admin limits this to "${HOST_LABELS[inbox.data.hostCommands]}". `
+                      ? `${t("An admin limits this to {limit}.", { limit: HOST_LABELS[inbox.data.hostCommands] })} `
                       : ""}
-                    The OpenBot desktop app still shows you each command before
-                    it runs.
+                    {t(
+                      "The OmniBot desktop app still shows you each command before it runs.",
+                    )}
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
                   <LabelSelect
                     disabled={preferences.isPending}
-                    label="Commands on your computer"
+                    label={t("Commands on your computer")}
                     labels={HOST_LABELS}
                     onChange={(hostCommands) =>
                       preferences.mutate({ hostCommands })
@@ -177,21 +184,23 @@ export function ApprovalSettings() {
       <PageSection
         description={
           <>
-            The strictest matching rule wins. An "ask" rule beats an "allow"
-            rule. Team rules are locked. Passwords, security settings and
-            payments are always handed to you. Rules for one Bot are on{" "}
+            {t(
+              "The strictest matching rule wins. An “ask” rule beats an “allow” rule. Team rules are locked. Passwords, security settings and payments are always handed to you. Rules for one Bot are on",
+            )}{" "}
             <Link className="underline underline-offset-4" to="/bots">
-              that Bot's page
+              {t("that Bot's page")}
             </Link>
             .
             {rulesOff
-              ? " An admin has turned off personal rules. Yours are kept but don't apply."
+              ? t(
+                  " An admin has turned off personal rules. Yours are kept but don't apply.",
+                )
               : ""}
           </>
         }
-        title="Rules for every Bot"
+        title={t("Rules for every Bot")}
       >
-        {saved === 0 ? <PageEmpty>No rules yet.</PageEmpty> : null}
+        {saved === 0 ? <PageEmpty>{t("No rules yet.")}</PageEmpty> : null}
         {saved > 0 || canAdd ? (
           <PageRows>
             {teamRules.map((rule, index) => (
@@ -224,7 +233,11 @@ export function ApprovalSettings() {
             {canAdd ? (
               <>
                 {saved > 0 ? <Separator /> : null}
-                <RuleForm botField={false} label="Add a rule" save={addRule} />
+                <RuleForm
+                  botField={false}
+                  label={t("Add a rule")}
+                  save={addRule}
+                />
               </>
             ) : null}
           </PageRows>
@@ -232,8 +245,10 @@ export function ApprovalSettings() {
       </PageSection>
       {agents.data !== undefined && otherBots.length > 0 ? (
         <PageSection
-          description="These don't match a Bot you can open. They still apply to any Bot they match. Remove the ones you don't want."
-          title="Rules for other Bots"
+          description={t(
+            "These don't match a Bot you can open. They still apply to any Bot they match. Remove the ones you don't want.",
+          )}
+          title={t("Rules for other Bots")}
         >
           <PageRows>
             {otherBots.map((rule, index) => (

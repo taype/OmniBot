@@ -120,7 +120,9 @@ import {
   type IdentifyUser,
   mountCopilotRuntime,
   normalizeModelBaseUrls,
+  required,
   runtimeModelForEnvironment,
+  type RuntimeModel,
   type ToolSelection,
 } from "./copilot";
 import {
@@ -257,6 +259,19 @@ import {
   loadTenantPackage,
   synchronizeTenantPackage,
 } from "./tenant-package";
+import {
+  modelApiFromEnvironment,
+  setModelRuntimeConfig,
+} from "./agents/model-api";
+import {
+  createModelAdminService,
+  createModelSettingsStore,
+  MODEL_CREDENTIAL_KEY_ID,
+  type ModelDefaults,
+} from "./model-settings";
+import { createLocalIntelligence } from "./threads/local-intelligence";
+import { LocalAgentRunner } from "./threads/local-agent-runner";
+import { createLocalThreadStore } from "./threads/local-thread-store";
 import { createUserInstructionsStore } from "./user-instructions";
 import { createUserPreferencesStore } from "./user-preferences";
 import { createVoiceSessionStore } from "./voice/sessions";
@@ -332,40 +347,68 @@ clearLearningRevisionFallback();
 // `serverPort` in config.ts for what `process.env.PORT ?? …` did with `PORT=` instead.
 const port = config.port;
 const database = createDatabase(config.databaseUrl);
+/*
+ * Local-mode thread state: one store shared by every local reader and writer, and the in-process
+ * runner the runtime and the unattended turns run agents through. Both absent in Intelligence mode,
+ * where the platform owns threads and the runner.
+ */
+const localThreadStore =
+  config.runtime.mode === "local"
+    ? createLocalThreadStore(database)
+    : undefined;
+const localAgentRunner =
+  localThreadStore !== undefined
+    ? new LocalAgentRunner(localThreadStore)
+    : undefined;
 // Every dispatch point asks this database whether its person paused the Bot. See agents/lifecycle.ts.
 configureBotLifecycle({ database });
 const learningSettingsStore = createLearningSettingsStore(
   database,
   config.learning,
 );
+/**
+ * The cloud contract, when this deployment has one.
+ *
+ * Local mode has none, and everything below is written so "no cloud" is a plain absence rather
+ * than a special branch at each feature: Learning's probe answers `unavailable` without a network
+ * call, and nothing tries to create a container it could not reach.
+ */
+const intelligenceSettings =
+  config.runtime.mode === "intelligence"
+    ? config.runtime.intelligence
+    : undefined;
 // Its own client, like the self-host banner's: the constructor opens nothing.
-const learningProbeIntelligence = createIntelligenceClient(
-  config.runtime.intelligence,
-);
+const learningProbeIntelligence = intelligenceSettings
+  ? createIntelligenceClient(intelligenceSettings)
+  : undefined;
 /*
  * Who can create the `openbot` container here: never the runtime key. A service token the operator
  * configured (local evaluation installs), or a CopilotKit CLI login on this machine, which is what a
  * laptop running `bun run start` has. Neither, and the log and Admin say exactly what to run instead.
  */
 const learningApiOrigin = (() => {
+  if (!intelligenceSettings) return undefined;
   try {
-    return intelligenceApiOrigin(config.runtime.intelligence.apiUrl);
+    return intelligenceApiOrigin(intelligenceSettings.apiUrl);
   } catch {
     return undefined;
   }
 })();
 const learningCanCreate =
+  intelligenceSettings !== undefined &&
   learningApiOrigin !== undefined &&
   (config.learningSetup !== undefined || cliLoginPresent());
 const learningAutoAssign = createLearningAutoAssign({
-  enabled: config.learningAutoAssign,
+  enabled: intelligenceSettings !== undefined && config.learningAutoAssign,
   store: learningSettingsStore,
-  probe: (containerId) =>
-    probeLearningContainer(learningProbeIntelligence, containerId),
+  probe: learningProbeIntelligence
+    ? (containerId) =>
+        probeLearningContainer(learningProbeIntelligence, containerId)
+    : async () => "unavailable" as const,
   ...(learningApiOrigin
     ? { instructions: learningSetupInstructions(learningApiOrigin) }
     : {}),
-  ...(learningCanCreate && learningApiOrigin
+  ...(learningCanCreate && learningApiOrigin && intelligenceSettings
     ? {
         create: () =>
           ensureLearningContainer({
@@ -374,8 +417,8 @@ const learningAutoAssign = createLearningAutoAssign({
             nonInteractive: true,
             key: keyIntelligence(
               learningApiOrigin,
-              config.runtime.intelligence.apiKey,
-              config.runtime.intelligence.gatewayWsUrl,
+              intelligenceSettings.apiKey,
+              intelligenceSettings.gatewayWsUrl,
             ),
             cliLogin: cliLoginPresent(),
             ...(config.learningSetup
@@ -472,8 +515,7 @@ const peopleStore = createPeopleStore(
    * after (see retireOwnedAccounts).
    *
    * A closure, because `pluginStore` is built further down: this has to exist before `auth` does,
-   * and that one needs the vault and the policy. `pluginStore` is read only when the closure runs —
-   * an administrator or the directory removing somebody, never during module initialisation — so by
+   * and that one needs the vault and the policy. `pluginStore` is read only when the closure runs -   * an administrator or the directory removing somebody, never during module initialisation -so by
    * then the binding is there. The linked-account half writes its audit rows through a store made
    * on its own transaction, so it reads no later binding (`bootAuditStore` included).
    */
@@ -577,7 +619,7 @@ let deliveryNotifications: (
  *
  * THE ROLE IS READ, NOT ASSUMED. Which coworkers exist is decided per person and an administrator
  * sees Bots a user does not, so hardcoding `role: "user"` here would hide an administrator's own Bots
- * from their own routine — the routine would fail with "that Bot is no longer registered" for a Bot
+ * from their own routine -the routine would fail with "that Bot is no longer registered" for a Bot
  * sitting in front of them in chat. This asks the same repository the request path asks, so a routine
  * sees exactly the coworkers its owner sees.
  */
@@ -655,21 +697,90 @@ normalizeModelBaseUrls();
 const runtimeModel = runtimeModelForEnvironment(tenantPackage.model);
 
 /**
+ * The model an administrator saved on the admin page, or nothing when they never did.
+ *
+ * Loaded once at boot and changed live by a save -the agents are built per run, so a saved model
+ * reaches the next answer without a restart. Absent, every reader below uses `runtimeModel`, which
+ * is what `.env` and the tenant package say.
+ */
+const modelSettingsStore = createModelSettingsStore(database);
+const savedModel = await modelSettingsStore.load();
+setModelRuntimeConfig(
+  savedModel
+    ? {
+        provider: savedModel.provider,
+        model: savedModel.model,
+        ...(savedModel.baseUrl ? { baseUrl: savedModel.baseUrl } : {}),
+        api: modelApiFromEnvironment(),
+      }
+    : undefined,
+);
+
+/** What a deployment that never saved a model answers on, shown beside the saved one. */
+const modelDefaults: ModelDefaults = {
+  provider: runtimeModel.provider,
+  model: runtimeModel.defaultModel,
+  baseUrl: null,
+};
+
+/**
+ * What a run uses, read fresh each time.
+ *
+ * The runtime's string path only knows openai and anthropic, and a saved model is always passed to
+ * the agent as a model object, so mapping google onto the OpenAI transport here is only about the
+ * auxiliaries (skill selection, routing) that read `provider` to pick a fetch shape.
+ */
+const currentRuntimeModel = (): RuntimeModel => {
+  const saved = modelSettingsStore.current();
+  if (!saved) return runtimeModel;
+  return {
+    provider: saved.provider === "anthropic" ? "anthropic" : "openai",
+    defaultModel: saved.model,
+    plan: runtimeModel.plan,
+  };
+};
+
+/** A `RuntimeModel` that answers with the live selection, for collaborators built once. */
+const liveRuntimeModel: RuntimeModel = {
+  get provider() {
+    return currentRuntimeModel().provider;
+  },
+  get defaultModel() {
+    return currentRuntimeModel().defaultModel;
+  },
+  get plan() {
+    return currentRuntimeModel().plan;
+  },
+};
+
+/**
+ * The deployment's model key, resolved per call so a credential rotated a moment ago is used next.
+ *
+ * A saved model's key is stored under its own vault id; the deployment defaults keep using the
+ * tenant package's `credential_secret_ref`, so saving a model never retires the package's key.
+ */
+const resolveRuntimeModelApiKey = () => {
+  const saved = modelSettingsStore.current();
+  return resolveModelApiKey({
+    encryptionKey: config.keyEncryptionKey,
+    reader: credentialStore,
+    provider: saved?.provider ?? runtimeModel.provider,
+    keyId: saved
+      ? MODEL_CREDENTIAL_KEY_ID
+      : tenantPackage.model.credentialSecretRef,
+    environment: process.env,
+  });
+};
+
+/**
  * Pass one of tool selection: which skills a message needs, on the deployment's own model.
  *
  * Built once rather than per request, because it holds nothing about a person: the key is resolved
  * on every call, so a credential rotated a moment ago is used by the next run.
  */
 const chooseSkills = createModelCompleter({
-  model: runtimeModel,
-  resolveApiKey: () =>
-    resolveModelApiKey({
-      encryptionKey: config.keyEncryptionKey,
-      reader: credentialStore,
-      provider: runtimeModel.provider,
-      keyId: tenantPackage.model.credentialSecretRef,
-      environment: process.env,
-    }),
+  model: liveRuntimeModel,
+  resolveApiKey: resolveRuntimeModelApiKey,
 });
 
 /*
@@ -677,23 +788,27 @@ const chooseSkills = createModelCompleter({
  *
  * Not the runtime's own pair: `mountCopilotRuntime` keeps its client and its runner inside
  * `CopilotRuntime` and hands neither back, and reaching into that object would be a worse seam than
- * building our own from the same three settings. Built from `config.runtime.intelligence`, which is
- * required and not optional — `RuntimeCapabilities` has exactly one mode and every Intelligence field
- * with it (`config.ts:10-22`), and `loadConfig` refuses to boot without them — so there is no
- * not-in-Intelligence-mode branch to write here. If a second mode is ever added, THIS is the line that
- * has to grow a guard, and the routine runner must then be left off `createApp` entirely.
+ * building our own from the same three settings. Built from `config.runtime.intelligence`, which in
+ * Intelligence mode is required and not optional; in LOCAL MODE there is no cloud, so the client is
+ * the thread store and the runner is the in-process runner, and every consumer below takes the pair
+ * without asking which it got.
  *
  * One runner for the process, reused across firings: it opens a socket per run and holds no idle
  * connection, but its `threads` map is per instance, and a runner per turn would fragment the
  * already-running check that keeps two turns off one thread. See `toolkit/run-turn.ts`.
  */
-const routineIntelligence = observeIntelligenceAuthentication(
-  new CopilotKitIntelligence({
-    apiUrl: config.runtime.intelligence.apiUrl,
-    wsUrl: config.runtime.intelligence.gatewayWsUrl,
-    apiKey: config.runtime.intelligence.apiKey,
-  }),
-);
+const routineIntelligence =
+  intelligenceSettings !== undefined
+    ? observeIntelligenceAuthentication(
+        new CopilotKitIntelligence({
+          apiUrl: intelligenceSettings.apiUrl,
+          wsUrl: intelligenceSettings.gatewayWsUrl,
+          apiKey: intelligenceSettings.apiKey,
+        }),
+      )
+    : createLocalIntelligence(
+        required(localThreadStore, "The local thread store"),
+      );
 const approvalComputerTools = async (
   ownerUserId: string,
   agentId: string,
@@ -768,8 +883,8 @@ const sandboxedStore = createSandboxedStore(database, bootAuditStore);
  * directory are the same client, and the store below and the routes further down share it.
  *
  * ONE CLIENT, TWO SEAMS, INSTALLED TWO DIFFERENT WAYS, because the two are reached two different
- * ways. The transport is reached as a MODULE — `transportFor` maps a kind to one, exactly as the
- * builtin routines transport above is reached — so there is no constructor to hand a client to and
+ * ways. The transport is reached as a MODULE -`transportFor` maps a kind to one, exactly as the
+ * builtin routines transport above is reached -so there is no constructor to hand a client to and
  * the registry is built at IMPORT TIME, long before there is configuration to read. That is why the
  * actions seam is installed globally, from here, the one place that has the key. The broker has no
  * such problem: it is an ordinary argument, passed to the store and to `createApp`.
@@ -884,7 +999,7 @@ const signInService = computerGateway
  *
  * THERE IS NO `?? "composio"` HERE ANY MORE, AND THAT WAS A BUG RATHER THAN A SHORTHAND.
  * Configuration names no provider for three different reasons, and the one that matters is "both
- * keys set, OPENBOT_BROKER_PROVIDER unset" — legal, documented, and exactly what a deployment
+ * keys set, OPENBOT_BROKER_PROVIDER unset" -legal, documented, and exactly what a deployment
  * migrating off Composio sits in while it ends its old accounts. Defaulting it to `composio` gave
  * the plugin store and the shared-use store a filter that excludes every Arcade row this deployment
  * holds, so live Arcade connections read as absent and the accounts behind them could not be
@@ -905,8 +1020,7 @@ if (providerConfiguration.kind === "ambiguous") {
   /*
    * Said out loud, once, at startup: this deployment has two keys and no answer, so nothing is
    * active and nothing can be connected or revoked until one is named. The rows it already holds
-   * are read as their own provider's (above), which is why this is a warning and not a refusal —
-   * the screens stay honest, the vendor calls stay impossible.
+   * are read as their own provider's (above), which is why this is a warning and not a refusal -   * the screens stay honest, the vendor calls stay impossible.
    */
   console.warn(
     `${providerConfiguration.configured.map((provider) => BROKERED_PROFILE[provider].envVar).join(" and ")} are both set and OPENBOT_BROKER_PROVIDER names neither, so no broker is active: connected apps can be neither connected nor revoked until it is set. Existing connections are read as ${BROKERED_PROFILE[brokerProvider].vendor}'s.`,
@@ -948,7 +1062,7 @@ const pluginStore = createPluginStore({
 });
 
 /*
- * Personal ⇄ Shared for a brokered app. Built here because it needs the plugin store, the shared-use
+ * Personal -Shared for a brokered app. Built here because it needs the plugin store, the shared-use
  * store and the approval policy at once: making an app Shared ends people's accounts, approves each
  * Bot that holds it and adds an ask-before-write rule for its writes.
  */
@@ -976,7 +1090,7 @@ if (composio) {
 /**
  * Routines, and the one moment its tools are told what to act on.
  *
- * The builtin transport is reached as a MODULE — `transportFor` maps a kind to one — so there is no
+ * The builtin transport is reached as a MODULE -`transportFor` maps a kind to one -so there is no
  * constructor to hand a store to and no request-time seam either: the transport registry is built at
  * import time, long before there is a database. So the store is installed here, once, from the place
  * that already owns building stores. Without this call the four tools are advertised and every one of
@@ -1189,15 +1303,8 @@ const stallGuard = createStallGuard({
 
 const intentRouter = createIntentRouter({
   complete: createModelCompleter({
-    model: runtimeModel,
-    resolveApiKey: () =>
-      resolveModelApiKey({
-        encryptionKey: config.keyEncryptionKey,
-        reader: credentialStore,
-        provider: runtimeModel.provider,
-        keyId: tenantPackage.model.credentialSecretRef,
-        environment: process.env,
-      }),
+    model: liveRuntimeModel,
+    resolveApiKey: resolveRuntimeModelApiKey,
   }),
 });
 
@@ -1206,27 +1313,10 @@ const intentRouter = createIntentRouter({
 void reportModelAvailability({
   provider: runtimeModel.provider,
   model: runtimeModel.defaultModel,
-  apiKey: () =>
-    resolveModelApiKey({
-      encryptionKey: config.keyEncryptionKey,
-      reader: credentialStore,
-      provider: runtimeModel.provider,
-      keyId: tenantPackage.model.credentialSecretRef,
-      environment: process.env,
-    }),
+  apiKey: resolveRuntimeModelApiKey,
 });
 
 // Named collaborators are bound once in actorAgentResolver for chat, hops, and headless turns.
-
-/** The deployment's model key, resolved per call so a credential rotated a moment ago is used next. */
-const resolveRuntimeModelApiKey = () =>
-  resolveModelApiKey({
-    encryptionKey: config.keyEncryptionKey,
-    reader: credentialStore,
-    provider: runtimeModel.provider,
-    keyId: tenantPackage.model.credentialSecretRef,
-    environment: process.env,
-  });
 
 const hostAccessBroker = createHostAccessBroker(Date.now, {
   approvalGate: approvalService.gate,
@@ -1241,9 +1331,13 @@ const hostAccessBroker = createHostAccessBroker(Date.now, {
 // tables when it is not; see memory/store.ts. Its own client, like the thread reader's: the
 // constructor opens nothing.
 const personalMemoryStore = createMemoryStore(database, {
-  intelligence: createIntelligenceMemory({
-    client: createIntelligenceClient(config.runtime.intelligence),
-  }),
+  ...(intelligenceSettings
+    ? {
+        intelligence: createIntelligenceMemory({
+          client: createIntelligenceClient(intelligenceSettings),
+        }),
+      }
+    : {}),
 });
 const demonstrationStore = createDemonstrationStore(database);
 const demonstrationRecorder = createDemonstrationRecorder({
@@ -1416,13 +1510,13 @@ const loadInstructionsForActor = (actorId: string) => () =>
  * row is fetched here and the bytes go up inline, so the Bot sees the file the person attached
  * instead of a link it cannot follow.
  *
- * Built per actor and passed to both turn paths — the request path through `mountCopilotRuntime` and
- * a routine's turn through `buildAgentFor` — so a routine firing at three in the morning inlines
+ * Built per actor and passed to both turn paths -the request path through `mountCopilotRuntime` and
+ * a routine's turn through `buildAgentFor` -so a routine firing at three in the morning inlines
  * exactly as a person's chat turn does, on exactly the same footing.
  *
  * NARROWED BY ACTOR AND BY CONVERSATION, and not silent. The reference reaches the loader out of
  * browser-supplied message content, so a turn can name an attachment in a channel the asker was
- * never in — or in one they ARE in but which is not the channel this turn is running in.
+ * never in -or in one they ARE in but which is not the channel this turn is running in.
  * `loadAttachmentForTurn` answers both with the same membership join the fetch route uses plus the
  * run's own thread, and null when there is no row this person may see here.
  * `resolveAttachmentParts` fails the turn on that null rather than letting a Bot read a file back
@@ -1451,7 +1545,7 @@ const loadAttachmentForActor =
  * NARROWED BY ACTOR, and more strictly than the reader is. Reading is scoped to channel
  * membership, because members are meant to see each other's sent files; recording a send is scoped
  * to the UPLOADER, because `attachedAt` is what the sweeper, the upload cap and the withdrawal
- * route all read as "this file rode in a message somebody sent" — and a member who could write it
+ * route all read as "this file rode in a message somebody sent" -and a member who could write it
  * on a colleague's staged row would freeze that colleague's own withdrawal at 409 and leave the row
  * unsweepable. See `markAttachmentsSent` in channels/attachments.ts.
  *
@@ -1607,8 +1701,8 @@ const { coordination, coordinationForActor } = wireCoordination({
  *
  * Per turn rather than per boot, for the same reason the request path rebuilds: a Bot registered or
  * edited since the last firing has to count, and a private coworker must be absent for everybody but
- * its owner. No header and no request are involved — the owner is asserted by construction, from the
- * routine row — which is the whole point of doing it here rather than adding an impersonation path to
+ * its owner. No header and no request are involved -the owner is asserted by construction, from the
+ * routine row -which is the whole point of doing it here rather than adding an impersonation path to
  * a public route.
  */
 const buildAgentFor = async ({
@@ -1637,7 +1731,7 @@ const buildAgentFor = async ({
      * Named, and raised rather than swallowed. The routine's Bot was deleted, or made private by
      * somebody else, or the owner lost the role that could see it. The runner turns this into a
      * failed run row with this sentence on it, the first failure is said once in the channel, and
-     * the fatigue rule switches the routine off after ten — which is exactly the right handling for
+     * the fatigue rule switches the routine off after ten -which is exactly the right handling for
      * a routine pointed at something that is not coming back.
      */
     const error = new Error(
@@ -1648,10 +1742,14 @@ const buildAgentFor = async ({
   }
   return agent;
 };
-const routineAgentRunner = new IntelligenceAgentRunner({
-  url: routineIntelligence.ɵgetRunnerWsUrl(),
-  authToken: routineIntelligence.ɵgetRunnerAuthToken(),
-});
+const routineAgentRunner =
+  localAgentRunner ??
+  new IntelligenceAgentRunner({
+    url: (routineIntelligence as CopilotKitIntelligence).ɵgetRunnerWsUrl(),
+    authToken: (
+      routineIntelligence as CopilotKitIntelligence
+    ).ɵgetRunnerAuthToken(),
+  });
 
 const routineRunner = createRoutineRunner({
   routineStore,
@@ -1694,7 +1792,7 @@ const routineRunner = createRoutineRunner({
  */
 const actorAgentResolver = createActorAgentResolver({
   loadAgents: loadAgentsForActor,
-  model: runtimeModel,
+  model: liveRuntimeModel,
   resolveModelApiKey: resolveRuntimeModelApiKey,
   stallGuard,
   loadToolsForActor: (actorId, initiator) =>
@@ -1733,6 +1831,9 @@ const copilotRuntime = mountCopilotRuntime(
       void channelStore.signalBusy(input.threadId, input.busy).catch(() => {});
     },
     learningSettings,
+    ...(localThreadStore && localAgentRunner
+      ? { local: { store: localThreadStore, runner: localAgentRunner } }
+      : {}),
   },
 );
 
@@ -2245,6 +2346,7 @@ if (config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0) {
     bootAuditStore,
     actorFor,
     copilotRuntime,
+    runner: routineAgentRunner,
     threadIdentity,
     groupConversations,
     channelStore,
@@ -2301,7 +2403,7 @@ const channelSummaries = {
   queue: createWorkQueue(database),
   transcript: routineIntelligence,
   title: createChannelTitler({
-    model: runtimeModel.defaultModel,
+    model: liveRuntimeModel.defaultModel,
     resolveApiKey: resolveRuntimeModelApiKey,
   }),
   owner: workOwner("summariser"),
@@ -2356,16 +2458,19 @@ guardHostAccess(
 auditRoutineStore(routineStore, bootAuditStore);
 
 // Asked only whether this deployment pays for Intelligence, for the self-host banner. Its own client
-// rather than the runtime's, the same as the thread reader: the constructor opens nothing.
-const selfHostBannerIntelligence = createIntelligenceClient(
-  config.runtime.intelligence,
-);
+// rather than the runtime's, the same as the thread reader: the constructor opens nothing. Absent in
+// local mode, where there is nothing to ask and the banner has nothing to show.
+const selfHostBannerIntelligence = intelligenceSettings
+  ? createIntelligenceClient(intelligenceSettings)
+  : undefined;
 
 // Said once, at boot, whether Intelligence will let this deployment use what it is licensed for. A
 // self-hosted Intelligence without a licence refuses memory quietly; this is the line that says why.
-void reportIntelligenceEntitlement({
-  entitlements: () => selfHostBannerIntelligence.getRuntimeEntitlements(),
-});
+void (selfHostBannerIntelligence
+  ? reportIntelligenceEntitlement({
+      entitlements: () => selfHostBannerIntelligence.getRuntimeEntitlements(),
+    })
+  : Promise.resolve());
 
 const identityGithubCallback =
   config.githubApp && config.publicUrl
@@ -2385,16 +2490,55 @@ const identityGithubCallback =
       })
     : undefined;
 
+/**
+ * The self-host banner's resolver. Local mode has nothing to ask, so its banner is disabled
+ * outright and the entitlements callback is never called.
+ */
+const selfHostBannerService = selfHostBannerIntelligence
+  ? createSelfHostBanner({
+      enabled: config.selfHostBanner,
+      entitlements: () => selfHostBannerIntelligence.getRuntimeEntitlements(),
+    })
+  : createSelfHostBanner({
+      enabled: false,
+      entitlements: async () => {
+        throw new Error(
+          "Local mode has no Intelligence to ask about entitlements.",
+        );
+      },
+    });
+
+/** The credential vault's admin face: the Model page stores keys through it, like the vault page. */
+const credentialAdminService = createCredentialAdminService(
+  config.keyEncryptionKey,
+  credentialStore,
+  createAuditStore(database),
+);
+
+/**
+ * The admin Model page's service.
+ *
+ * `onChanged` is the live half: a save replaces the model the next run is built with, so the page
+ * takes effect without a restart. `defaultsKeyId` keeps the tenant package's own credential working
+ * for deployments that never save a model here.
+ */
+const modelService = createModelAdminService({
+  store: modelSettingsStore,
+  defaults: modelDefaults,
+  credentialService: credentialAdminService,
+  credentialReader: credentialStore,
+  encryptionKey: config.keyEncryptionKey,
+  defaultsKeyId: tenantPackage.model.credentialSecretRef,
+  audit: createAuditStore(database),
+  onChanged: (next) => setModelRuntimeConfig(next),
+});
+
 const app = createApp(
   config,
   auth,
   roleRepository,
   createAuditReader(database),
-  createCredentialAdminService(
-    config.keyEncryptionKey,
-    credentialStore,
-    createAuditStore(database),
-  ),
+  credentialAdminService,
   createPackageStatusReader(database),
   // The runtime call: the model, per-actor agent loading, and the two identity
   // functions are how a run is attributed to a person.
@@ -2499,7 +2643,7 @@ const app = createApp(
   {
     store: createVoiceSessionStore(database, channelStore),
     summarize: createVoiceSummarizer({
-      model: runtimeModel,
+      model: liveRuntimeModel,
       resolveApiKey: resolveRuntimeModelApiKey,
     }),
     channels: channelStore,
@@ -2567,13 +2711,18 @@ const app = createApp(
       auditStore: bootAuditStore,
     },
   },
-  createSelfHostBanner({
-    enabled: config.selfHostBanner,
-    entitlements: () => selfHostBannerIntelligence.getRuntimeEntitlements(),
-  }),
+  selfHostBannerService,
 
   identityStore,
   identityGithubCallback,
+  // The local thread-known check; absent in Intelligence mode, where app.ts builds the platform
+  // reader itself.
+  localThreadStore
+    ? async (threadId: string) =>
+        (await localThreadStore.getThread(threadId)) ? "known" : "unknown"
+    : undefined,
+  // The admin Model page: the deployment's model, saved and read back from here.
+  modelService,
 );
 
 startHttpServer({
@@ -2586,6 +2735,28 @@ startHttpServer({
   demonstrationRecorder,
   app,
 });
+
+/*
+ * Local mode only: load recent transcripts into the runner's synchronous reader, so `/bot` and a
+ * re-opened channel restore their history before anybody has typed in this process.
+ */
+if (localAgentRunner) {
+  void localAgentRunner
+    .warm()
+    .then((threads) =>
+      console.info(
+        JSON.stringify({ type: "local-thread-cache-warmed", threads }),
+      ),
+    )
+    .catch((error: unknown) =>
+      console.warn(
+        JSON.stringify({
+          type: "local-thread-cache-failed",
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      ),
+    );
+}
 
 if (config.singleUser) {
   // Loud, every boot. A server that is not checking who is asking should never be a quiet default.
@@ -2619,4 +2790,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-console.info(`OpenBot server listening on http://127.0.0.1:${port}`);
+console.info(`OmniBot server listening on http://127.0.0.1:${port}`);

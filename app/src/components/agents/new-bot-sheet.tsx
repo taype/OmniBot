@@ -35,6 +35,7 @@ import {
   agentInputFrom,
 } from "@/lib/agents/form";
 import { createAgentMutationOptions } from "@/lib/agents/mutations";
+import { useI18n } from "@/lib/i18n";
 import {
   agentCapabilitiesQueryOptions,
   testAgentConnection,
@@ -63,6 +64,7 @@ export function NewBotSheet({
   /** The new Bot's id, so the caller can take the person to it. */
   onCreated: (agentId: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Sheet
       onOpenChange={(next) => {
@@ -76,7 +78,7 @@ export function NewBotSheet({
         side="right"
         variant="inset"
       >
-        <SheetTitle className="sr-only">New Bot</SheetTitle>
+        <SheetTitle className="sr-only">{t("New Bot")}</SheetTitle>
         {/* Inside the popup, so it unmounts on close and a reopened sheet starts empty. */}
         <NewBotFlow onCreated={onCreated} />
       </SheetContent>
@@ -139,6 +141,7 @@ function defaultInstructions(name: string, runtime: Runtime): string {
  * `min-h-0` and no overflow of its own shrinks and paints over the footer instead.
  */
 function NewBotFlow({ onCreated }: { onCreated: (agentId: string) => void }) {
+  const { t } = useI18n();
   const createAgent = useMutation(createAgentMutationOptions(queryClient));
   /*
    * Assumed available while the answer loads, so the common deployment never sees the option flash
@@ -403,12 +406,12 @@ function NewBotFlow({ onCreated }: { onCreated: (agentId: string) => void }) {
           type="submit"
         >
           {checking
-            ? "Checking…"
+            ? t("Checking…")
             : createAgent.isPending
-              ? "Creating…"
+              ? t("Creating…")
               : step === "about"
-                ? "Create"
-                : "Continue"}
+                ? t("Create")
+                : t("Continue")}
         </Button>
       </SheetFooter>
     </form>
@@ -433,6 +436,7 @@ const ORB_LAYOUT_ID = "new-bot-orb";
  * and on the roster, which is the same place the hand-over would have led.
  */
 function CreatedView({ name }: { name: string }) {
+  const { t } = useI18n();
   return (
     <div
       aria-live="polite"
@@ -468,7 +472,9 @@ function CreatedView({ name }: { name: string }) {
         <h2 className="break-words font-semibold text-xl tracking-tight">
           {name} is ready
         </h2>
-        <p className="mt-1 text-muted-foreground text-sm">Taking you to it…</p>
+        <p className="mt-1 text-muted-foreground text-sm">
+          {t("Taking you to it…")}
+        </p>
       </motion.div>
     </div>
   );
@@ -492,7 +498,7 @@ const VISIBILITY_OPTIONS: Array<{
   {
     value: "public",
     title: "Public",
-    description: "Everyone in your OpenBot can find and use it.",
+    description: "Everyone in your OmniBot can find and use it.",
     icon: IconUsers,
   },
 ];
@@ -534,11 +540,12 @@ function AboutStep({
   onInstructions: (value: string) => void;
   onVisibility: (value: Visibility) => void;
 }) {
+  const { t } = useI18n();
   const runsHere = runtime.kind === "builtin";
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel htmlFor="new-bot-name">Name</FieldLabel>
+        <FieldLabel htmlFor="new-bot-name">{t("Name")}</FieldLabel>
         <Input
           autoComplete="off"
           autoFocus
@@ -552,7 +559,9 @@ function AboutStep({
       <Field>
         <FieldLabel htmlFor="new-bot-title">
           Title
-          <span className="font-normal text-muted-foreground">Optional</span>
+          <span className="font-normal text-muted-foreground">
+            {t("Optional")}
+          </span>
         </FieldLabel>
         <Input
           autoComplete="off"
@@ -562,12 +571,16 @@ function AboutStep({
           placeholder={runsHere ? "Finance Operations" : defaultTitle(runtime)}
           value={title}
         />
-        <FieldDescription>A few words shown under its name.</FieldDescription>
+        <FieldDescription>
+          {t("A few words shown under its name.")}
+        </FieldDescription>
       </Field>
       <Field>
         <FieldLabel htmlFor="new-bot-instructions">
           {runsHere ? "Instructions" : "Role"}
-          <span className="font-normal text-muted-foreground">Optional</span>
+          <span className="font-normal text-muted-foreground">
+            {t("Optional")}
+          </span>
         </FieldLabel>
         <Textarea
           autoComplete="off"
@@ -585,7 +598,7 @@ function AboutStep({
         </FieldDescription>
       </Field>
       <FieldSet>
-        <FieldLegend variant="label">Who can see it</FieldLegend>
+        <FieldLegend variant="label">{t("Who can see it")}</FieldLegend>
         <div className="grid gap-2 sm:grid-cols-2">
           {VISIBILITY_OPTIONS.map((option) => {
             const Icon = option.icon;
@@ -657,6 +670,7 @@ function RuntimeStep({
   runtime: Runtime | null;
   onChoose: (runtime: Runtime) => void;
 }) {
+  const { t } = useI18n();
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
 
@@ -681,10 +695,12 @@ function RuntimeStep({
           <IconSparkles className="size-6 text-foreground" />
         </span>
         <span className="min-w-0 pt-0.5">
-          <span className="block font-semibold text-base">Run it here</span>
+          <span className="block font-semibold text-base">
+            {t("Run it here")}
+          </span>
           <span className="mt-1 block text-pretty text-muted-foreground text-sm">
             {builtInAvailable
-              ? "OpenBot runs it for you. Nothing to set up, and it can start right away."
+              ? "OmniBot runs it for you. Nothing to set up, and it can start right away."
               : "Not available yet. An admin has to turn this on first."}
           </span>
         </span>
@@ -749,6 +765,7 @@ function EndpointStep({
   onEndpoint: (value: string) => void;
   onKey: (value: string) => void;
 }) {
+  const { t } = useI18n();
   const chosen = WEB_HARNESSES.find((entry) => entry.id === harness);
 
   return (
@@ -767,7 +784,9 @@ function EndpointStep({
 
       <FieldGroup>
         <Field data-invalid={endpointError ? true : undefined}>
-          <FieldLabel htmlFor="new-bot-endpoint">Agent address</FieldLabel>
+          <FieldLabel htmlFor="new-bot-endpoint">
+            {t("Agent address")}
+          </FieldLabel>
           <Input
             aria-invalid={endpointError ? true : undefined}
             autoComplete="off"
@@ -785,15 +804,18 @@ function EndpointStep({
             />
           ) : (
             <FieldDescription>
-              Any agent that speaks AG-UI works. OpenBot connects to it, so it
-              has to be reachable from OpenBot's server.
+              {t(
+                "Any agent that speaks AG-UI works. OmniBot connects to it, so it has to be reachable from OmniBot's server.",
+              )}
             </FieldDescription>
           )}
         </Field>
         <Field>
           <FieldLabel htmlFor="new-bot-key">
             Key
-            <span className="font-normal text-muted-foreground">Optional</span>
+            <span className="font-normal text-muted-foreground">
+              {t("Optional")}
+            </span>
           </FieldLabel>
           <Input
             autoComplete="off"
@@ -804,8 +826,8 @@ function EndpointStep({
             value={secret}
           />
           <FieldDescription>
-            Sent as an <code>Authorization</code> header with every request, and
-            stored encrypted.
+            {t("Sent as an")} <code>Authorization</code>{" "}
+            {t("header with every request, and stored encrypted.")}
           </FieldDescription>
         </Field>
       </FieldGroup>

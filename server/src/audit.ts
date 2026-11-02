@@ -589,6 +589,9 @@ export const auditEventTypes = [
   "routine.enabled_changed",
   /* A run refused because its model is not on the team model allowlist. */
   "model.refused",
+  /* The deployment's model, changed from the admin Model page. Never the key. */
+  "model.saved",
+  "model.cleared",
 ] as const;
 
 export type AuditEventType = (typeof auditEventTypes)[number];

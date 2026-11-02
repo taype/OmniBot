@@ -5,6 +5,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { LanguagePreference } from "@/components/settings/language-preference";
 import { MessageListPreference } from "@/components/settings/message-list-preference";
 import { StandingInstructions } from "@/components/settings/standing-instructions";
 import { useTheme } from "@/components/theme-provider";
@@ -18,6 +19,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { formatHotkey, HOTKEYS } from "@/lib/hotkeys/hotkeys";
+import { useI18n } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/settings/")({
   component: RouteComponent,
@@ -25,6 +27,7 @@ export const Route = createFileRoute("/_authed/settings/")({
 
 function RouteComponent() {
   const { dark, setDark } = useTheme();
+  const { t } = useI18n();
 
   /*
    * The measurements that used to be written out here now live in `PageShell`, which Skills, Admin
@@ -36,21 +39,23 @@ function RouteComponent() {
    */
   return (
     <PageShell
-      description="How OpenBot looks and works for you. Message list settings follow your account. The theme stays in this browser."
-      title="Preferences"
+      description={t(
+        "How OmniBot looks and works for you. Message list settings follow your account. The theme stays in this browser.",
+      )}
+      title={t("Preferences")}
     >
-      <PageSection title="General">
+      <PageSection title={t("General")}>
         <PageRows>
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Dark theme</ItemTitle>
+              <ItemTitle>{t("Dark theme")}</ItemTitle>
               <ItemDescription>
-                Use the dark appearance across OpenBot.
+                {t("Use the dark appearance across OmniBot.")}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Dark theme"
+                aria-label={t("Dark theme")}
                 checked={dark}
                 onCheckedChange={setDark}
               />
@@ -58,6 +63,7 @@ function RouteComponent() {
           </Item>
         </PageRows>
         <MessageListPreference />
+        <LanguagePreference />
       </PageSection>
       {/*
        * Above the shortcuts and below the appearance preferences, because it is the only thing on this
@@ -69,7 +75,7 @@ function RouteComponent() {
        * actually do rather than what somebody remembered they did. Read-only on purpose: these
        * are not rebindable, and a row with nothing to click says so by having nothing to click.
        */}
-      <PageSection title="Keyboard shortcuts">
+      <PageSection title={t("Keyboard shortcuts")}>
         <PageRows>
           {HOTKEYS.map((hotkey, index) => (
             <React.Fragment key={hotkey.id}>

@@ -55,10 +55,10 @@ export class PersonalMemoryMiddleware extends Middleware {
             ],
             context: [
               ...input.context.filter(
-                (entry) => entry.description !== "OpenBot personal memory",
+                (entry) => entry.description !== "OmniBot personal memory",
               ),
               ...(content
-                ? [{ description: "OpenBot personal memory", value: content }]
+                ? [{ description: "OmniBot personal memory", value: content }]
                 : []),
             ],
           },

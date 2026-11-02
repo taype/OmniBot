@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { IntelligenceAgentRunner } from "@copilotkit/runtime/v2";
+import type { RunnerLike } from "@openbot/toolkit/run-turn";
 import { workOwner } from "@openbot/shared/work-owner";
 import { eq } from "drizzle-orm";
 import { type AuditStore, handoffInitiator } from "../audit";
@@ -36,6 +36,12 @@ export async function startHandoffDelivery(deps: {
   bootAuditStore: AuditStore;
   actorFor: (ownerUserId: string) => Promise<AgentActor>;
   copilotRuntime: ReturnType<typeof mountCopilotRuntime>;
+  /**
+   * The runner a delivered turn is driven through: the platform's gateway runner in Intelligence
+   * mode, the in-process runner in local mode. The delivery does not ask which it got — see
+   * `RunnerLike` in `toolkit/run-turn.ts`.
+   */
+  runner: RunnerLike;
   threadIdentity: ThreadIdentity;
   groupConversations: GroupConversations;
   channelStore: ChannelStore;
@@ -46,6 +52,7 @@ export async function startHandoffDelivery(deps: {
     bootAuditStore,
     actorFor,
     copilotRuntime,
+    runner: agentRunner,
     threadIdentity,
     groupConversations,
     channelStore,
@@ -120,12 +127,9 @@ export async function startHandoffDelivery(deps: {
       // to its channel by the store; a scratch thread maps to none and signals nowhere.
       setBusy: (input) => channelStore.signalBusy(input.threadId, input.busy),
       newRunId: () => randomUUID(),
-      // The same address and the same token the runtime uses. Assembling either from configuration
-      // produced a runner every join was refused for, because the thread's active run is a lock the
-      // platform issues rather than something an API key can claim.
-      runner: new IntelligenceAgentRunner(
-        copilotRuntime.runnerConnection(),
-      ) as never,
+      // The runner the deployment drives unattended turns through. In Intelligence mode this is the
+      // platform gateway runner; in local mode it is the in-process runner that persists the turn.
+      runner: agentRunner as never,
     }),
   });
 

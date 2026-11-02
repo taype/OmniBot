@@ -33,6 +33,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { type ConnectionRow, connectionRows } from "@/lib/connections/rows";
+import { useI18n } from "@/lib/i18n";
 import {
   identityProvidersQueryOptions,
   linkedAccountsQueryOptions,
@@ -59,7 +60,7 @@ export const Route = createFileRoute("/_authed/_app/connections/")({
   /*
    * `?connected=` is how the OAuth callback reports back, carrying a server key on success and
    * `failed` otherwise. `?linked=` is the same for the GitHub account-link callback: `github` on
-   * success, `github-taken` when that GitHub account belongs to another OpenBot user, `failed`
+   * success, `github-taken` when that GitHub account belongs to another OmniBot user, `failed`
    * otherwise (see linked-notice.ts). Each is the only channel available: the callback is a
    * redirect from another company's server, so there is no response body to read.
    *
@@ -129,7 +130,7 @@ export const AUTHORIZATION_NOTICES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "vendor-unavailable",
-    "The app didn't answer when OpenBot tried to finish that authorization, so nothing was recorded. Try the link again in a moment.",
+    "The app didn't answer when OmniBot tried to finish that authorization, so nothing was recorded. Try the link again in a moment.",
   ],
   [
     "not-your-authorization",
@@ -243,6 +244,7 @@ export function sharedAccountsListedOn(
 }
 
 function RouteComponent() {
+  const { t } = useI18n();
   const { connected: outcome, authorized, linked } = Route.useSearch();
   /*
    * ALL THREE READ ONCE HERE, AND ALL THREE DROPPED FROM THE URL BELOW — not just `?linked=`.
@@ -361,7 +363,7 @@ function RouteComponent() {
     providers.isPending;
 
   return (
-    <PageShell className="@container" title="Connections">
+    <PageShell className="@container" title={t("Connections")}>
       {/*
        * For `?connected=` only the failure is worth saying. A success needs no sentence: the row it
        * came back to now reads "Connected", which is the same news told by the thing it is news
@@ -369,7 +371,7 @@ function RouteComponent() {
        */}
       {arrival.outcome === "failed" ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Couldn't connect that account. Nothing was saved. Try again.
+          {t("Couldn't connect that account. Nothing was saved. Try again.")}
         </p>
       ) : null}
       {notice ? (
@@ -394,8 +396,10 @@ function RouteComponent() {
         </p>
       ) : null}
       <PageSection
-        description="The apps and accounts your Bots use as you. Open one to connect it or change it."
-        title="Your connections"
+        description={t(
+          "The apps and accounts your Bots use as you. Open one to connect it or change it.",
+        )}
+        title={t("Your connections")}
       >
         {/*
          * BOTH APP READS DECIDE THIS. A `/api/plugins` that succeeded beside a
@@ -405,33 +409,35 @@ function RouteComponent() {
          */}
         {loading ? null : plugins.error || connections.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Couldn't load your connections. Reload the page, or ask an admin if
-            it keeps happening.
+            {t(
+              "Couldn't load your connections. Reload the page, or ask an admin if it keeps happening.",
+            )}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
-            Nothing to connect yet. Apps show up here once an admin turns them
-            on.
+            {t(
+              "Nothing to connect yet. Apps show up here once an admin turns them on.",
+            )}
           </PageEmpty>
         ) : (
           <>
             <p className="mt-4 text-xs text-muted-foreground">
-              {inUse} in use · {rows.length} in all
+              {t("{inUse} in use · {all} in all", { inUse, all: rows.length })}
             </p>
             <InputGroup className="mt-3 h-9 border-transparent bg-muted/60 shadow-none dark:bg-muted/60">
               <InputGroupAddon>
                 <IconSearch aria-hidden="true" className="size-4" />
               </InputGroupAddon>
               <InputGroupInput
-                aria-label="Search connections"
-                placeholder="Search connections"
+                aria-label={t("Search connections")}
+                placeholder={t("Search connections")}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </InputGroup>
             {matching.length === 0 ? (
               <p className="mt-8 text-sm text-muted-foreground" role="status">
-                Nothing matches “{search.trim()}”.
+                {t("Nothing matches “{query}”.", { query: search.trim() })}
               </p>
             ) : (
               <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-2 @min-[36rem]:grid-cols-2">
@@ -444,8 +450,9 @@ function RouteComponent() {
         )}
         {links.error || providers.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Couldn't load GitHub and Slack, so they aren't listed. Reload the
-            page.
+            {t(
+              "Couldn't load GitHub and Slack, so they aren't listed. Reload the page.",
+            )}
           </p>
         ) : null}
       </PageSection>
@@ -455,6 +462,7 @@ function RouteComponent() {
 
 /** One connection: its mark, its name, one line, and where it stands. Opens its own page. */
 function ConnectionItem({ row }: { row: ConnectionRow }) {
+  const { t } = useI18n();
   return (
     <Item
       className="min-w-0 flex-nowrap gap-3 px-2 py-3"
@@ -489,6 +497,7 @@ function ConnectionMark({ mark }: { mark: ConnectionRow["mark"] }) {
 }
 
 function ConnectionStateLabel({ state }: { state: ConnectionRow["state"] }) {
+  const { t } = useI18n();
   if (state === "connected") {
     return (
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -496,16 +505,18 @@ function ConnectionStateLabel({ state }: { state: ConnectionRow["state"] }) {
           aria-hidden="true"
           className="size-3.5 text-emerald-600 dark:text-emerald-400"
         />
-        Connected
+        {t("Connected")}
       </span>
     );
   }
   if (state === "team") {
-    return <span className="text-xs text-muted-foreground">Team account</span>;
+    return (
+      <span className="text-xs text-muted-foreground">{t("Team account")}</span>
+    );
   }
   return (
     <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-      {state === "needs_reconnect" ? "Reconnect" : "Connect"}
+      {state === "needs_reconnect" ? t("Reconnect") : t("Connect")}
     </span>
   );
 }

@@ -20,11 +20,29 @@ import type { BrokerProvider } from "./plugins/access";
 import { type VoiceConfig, voiceConfig } from "./voice/config";
 import { type WebBotAuth, webBotAuthFromEnv } from "./web-bot-auth";
 
-export type RuntimeCapabilities = {
-  mode: "intelligence";
-  durableHistory: true;
-  intelligence: IntelligenceSettings;
-};
+/**
+ * How conversations, memory and unattended runs are kept.
+ *
+ * Two modes, and the difference is who owns the thread store:
+ *
+ * - `intelligence`: CopilotKit's managed platform (or a self-hosted Intelligence) holds threads,
+ *   memory and the runner. What the README calls the standard deployment.
+ * - `local`: OpenBot's own PostgreSQL and this process hold them. Chosen with `LOCAL_MODE=true`, or
+ *   by simply configuring no Intelligence at all, which is the shape a self-contained local
+ *   deployment has. Nothing cloud-bound is required in this mode: runs stream in-process (the
+ *   runtime's SSE mode), history is `local_thread_messages`, and the thread lock is a row.
+ */
+export type RuntimeCapabilities =
+  | {
+      mode: "intelligence";
+      durableHistory: true;
+      intelligence: IntelligenceSettings;
+    }
+  | {
+      mode: "local";
+      durableHistory: true;
+      intelligence?: undefined;
+    };
 
 /**
  * The Intelligence contract. Three values are required; see runtimeCapabilities.
@@ -956,19 +974,26 @@ function oktaAuth(
 }
 
 /**
- * Resolve the Intelligence contract, or refuse to start.
+ * Resolve the runtime contract: Intelligence, or a fully local deployment.
  *
- * The three addressing values are required together. A partial set is the more dangerous shape than
- * none at all: it means somebody intended to configure Intelligence and got it wrong, so failing on
- * the partial set alone (as this did) let a completely unconfigured deployment through as if that
- * were a choice.
+ * Three addressing values belong together. A PARTIAL set is the dangerous shape — somebody intended
+ * to configure Intelligence and got it wrong — so it is still refused, while NO values at all is
+ * the honest local shape and is accepted as `mode: "local"` (threads, memory and unattended runs
+ * kept in this deployment's own PostgreSQL). `LOCAL_MODE=true` / `LOCAL_MODE=1` forces local mode
+ * even when the three values are present, which is how a laptop can point at the cloud occasionally
+ * without the runtime turning cloud-bound.
  *
- * COPILOTKIT_LICENSE_TOKEN IS NO LONGER ONE OF THEM. Managed Intelligence issues a single project
+ * COPILOTKIT_LICENSE_TOKEN IS NO LONGER REQUIRED. Managed Intelligence issues a single project
  * key and derives entitlement from it, and requiring a second credential here sent people hunting
  * for a token the platform had stopped handing out. It is still read and still forwarded when a
  * deployment sets one, which is what a self-hosted Intelligence with its own licence needs.
  */
 function runtimeCapabilities(environment: Environment): RuntimeCapabilities {
+  const forcedLocal =
+    optional(environment, "LOCAL_MODE") === "true" ||
+    optional(environment, "LOCAL_MODE") === "1";
+  if (forcedLocal) return { mode: "local", durableHistory: true };
+
   const settings = {
     apiUrl: url(environment, "INTELLIGENCE_API_URL"),
     gatewayWsUrl: url(environment, "INTELLIGENCE_GATEWAY_WS_URL"),
@@ -984,9 +1009,10 @@ function runtimeCapabilities(environment: Environment): RuntimeCapabilities {
     .filter(([, value]) => !value)
     .map(([name]) => name);
 
+  if (missing.length === 3) return { mode: "local", durableHistory: true };
   if (missing.length > 0) {
     throw new Error(
-      `CopilotKit Intelligence is required and is not configured. Missing: ${missing.join(", ")}`,
+      `CopilotKit Intelligence is partially configured. Missing: ${missing.join(", ")}. Set all three, or none (a deployment with none runs fully local).`,
     );
   }
 

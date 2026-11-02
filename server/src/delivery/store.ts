@@ -227,7 +227,7 @@ export function createDeliveryStore(database: Database) {
         .returning();
       if (!device)
         throw new DeliveryRefusedError(
-          "This device is already registered to another account. Sign out of OpenBot on it first.",
+          "This device is already registered to another account. Sign out of OmniBot on it first.",
         );
       return device;
     },
